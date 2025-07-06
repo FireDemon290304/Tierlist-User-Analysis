@@ -7,11 +7,14 @@ Created on Sun Jul  6 09:10:54 2025
 
 import subprocess
 
-def js_fetch_interface(url):
+def js_fetch_interface(url: str, outFile: str,
+                       isMain: bool,
+                       # TODO: Clean run
+                       verbose: bool = False):
     print("fetching...")
     
     result = subprocess.run(
-        ['node', 'js/fetch.js', url, 'data/fetchResult.json'],
+        ['node', 'js/fetch.js', url, outFile, "1" if isMain else "0", "1" if verbose else "0"],
         capture_output=True,
         text=True)
     if result.returncode != 0:

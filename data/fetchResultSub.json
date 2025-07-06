@@ -1,0 +1,38 @@
+{
+  "userName": "Jajão",
+  "title": "Hollow Knight",
+  "rows": [
+    {
+      "tierName": "S",
+      "entries": []
+    },
+    {
+      "tierName": "A",
+      "entries": []
+    },
+    {
+      "tierName": "B",
+      "entries": [
+        "19"
+      ]
+    },
+    {
+      "tierName": "C",
+      "entries": [
+        "10"
+      ]
+    },
+    {
+      "tierName": "D",
+      "entries": []
+    },
+    {
+      "tierName": "E",
+      "entries": []
+    },
+    {
+      "tierName": "F",
+      "entries": []
+    }
+  ]
+}
