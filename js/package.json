@@ -3,6 +3,7 @@
   "dependencies": {
     "fs": "^0.0.1-security",
     "node-fetch": "^3.3.2",
+    "p-limit": "^6.2.0",
     "puppeteer": "^24.11.2"
   }
 }
