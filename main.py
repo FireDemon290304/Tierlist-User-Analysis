@@ -14,7 +14,12 @@ import requests
 import time
 
 def start_server():
-    return subprocess.Popen(['node', 'js/server.js'])
+    print("starting node")
+    node_server = subprocess.Popen(['node', 'js/server.js'])
+    
+    #time.sleep(3)
+    print("done sleeping")
+    return node_server
 
 def main():    
     local = "http://localhost:3000"
@@ -22,7 +27,6 @@ def main():
     
     url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'
     #url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"
-    # .. because these are refed inside js folder
     outFileMain = "data/fetchResultMain.json"
     outFileSub = "data/fetchResultSub.jsonl" # JSON-line separated
     
@@ -49,31 +53,36 @@ def main():
         "url": absolute_urls,                # now is list
         "outFile": outFileSub,
         "isMain": False,
-        "verbose": True
+        "verbose": False
     }
 
     print("Getting individual entries...")
     requests.post(local + '/scrape', json=data2)
     
     print("stopping server")
-    requests.post(local + '/stop')
+    res1 = requests.post(local + '/stop')
+    
+    print(res1.content)
     
     # todo handle error responses
 
 if __name__ == "__main__":
+    node_proc  = start_server()
     
-    print("starting node")
-    node_server = start_server()
+    main()
     
-    time.sleep(3)
-    print("done sleeping")
+    time.sleep(1)       # todo race
     
+    print('terminating')
+    node_proc.terminate()
+    node_proc.wait()
+    
+    """
     try:
         main()
     finally:
-        try:
-            node_server.terminate()
-        except:
-            print('nothing to stop')
+        node_proc.terminate()
+        node_proc .wait()
+    """
         
         
