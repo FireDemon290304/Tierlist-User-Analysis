@@ -8,6 +8,9 @@ Do analysis on users using LA
   - if json gets too large before i go to db, simply make fewer letters/do abbr
 - Fix server logging (add annotations, so i can see *specifically* which process has "finished")
 - fix race where py node proc terminates before server internally shuts down
-- Parsing Dataclass into mem from "database"
+- rename parser
+- make persistant data into database
+  - Reformat dataload funcs to accomedate the change
+  - if vectordb, add function for querrying when building
 - Functions for linear algrbra analysis
 - Make into CLI
