@@ -11,8 +11,8 @@ from parser import TierListDataset
 from py_fetch import fetch
 from typing import Set
 
-outFileMain = "D:/Python Scripts/Tierlist User Analysis/data/fetchResultMain3.json"
-outFileSub = "D:/Python Scripts/Tierlist User Analysis/data/fetchResultSub3.jsonl"  # JSON-line separated
+outFileMain = "D:/Python Scripts/Tierlist User Analysis/data/fetchResultMain4.json"
+outFileSub = "D:/Python Scripts/Tierlist User Analysis/data/fetchResultSub4.jsonl"  # JSON-line separated
 
 
 def find_dupes(path):
@@ -42,10 +42,11 @@ def get_dataset(url):
 
 
 def main():
-    # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # (44 of 8)
-    # url = "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470"  # (33 of 8)
-    # url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # (186 of 8)
-    # get_dataset(url)
+    # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
+    # url = "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470"  # 33 of 8
+    # url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
+    url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest)
+    get_dataset(url)
     # print_df()
     # find_dupes(outFileSub)
     pass

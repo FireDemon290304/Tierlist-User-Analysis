@@ -1,27 +1,31 @@
 "use strict";
 
 import fs from 'fs';
-//import { log } from './server.js';
+import { log } from './server.js';
 // dont use log, the page console will log to the serve, who will log to the file
+
+const MAX_RETRIES = 3;
+const TIMEOUT = 25000;
 
 export async function tierSub(page, singleUrl, verbose) {
     if (verbose) {
-        console.log("sub mode, fetching tier list from", singleUrl);
-        console.log("loading page", singleUrl);
+        log("sub mode, fetching tier list from", singleUrl);
+        log("loading page", singleUrl);
     }
     await page.goto(singleUrl, { waitUntil: 'domcontentloaded' });
 
-    if (verbose) console.log("waiting for tier container");
+    if (verbose) log("waiting for tier container");
     try {
-        await page.waitForSelector('#tier-container', { timeout: 25000 }); // 25s timeout
+        await page.waitForSelector('#tier-container', { timeout: TIMEOUT }); // 25s timeout
         // made timeout lopnger to account for slow loading pages (since some tier lists have a lot of images)
     }
     catch (error) {
         console.error("Tier container not found, page may not be a valid tier list:", error);
+        log(`ERROR: Tier container not found after ${TIMEOUT} ms: ${error}`)
         return { error: "Timeout" };
     }
 
-    if (verbose) console.log("tier container found, evaluating page");
+    if (verbose) log("tier container found, evaluating page");
     const retObj = await page.evaluate(() => {
         /*
             * Relevant info in one item:
@@ -75,7 +79,7 @@ export async function tierSub(page, singleUrl, verbose) {
         };
     });
 
-    if (verbose) {console.log("got:", retObj);}
+    if (verbose) { log(`got: ${retObj} from ${singleUrl}`); }
     return retObj;
 }
 
@@ -87,18 +91,18 @@ export async function tierMain(page, url, outFile, verbose) {
         ** get the anchor tag inside to get the link (sans base url)
      */
     if (verbose) {
-        console.log("main mode, fetching tier list from", url);
-        console.log("loading page", url);
+        log("main mode, fetching tier list from", url);
+        //log("loading page", url);
     }
 
     let currPage = 1;
     let baseUrl = new URL(url);
-    console.log("base url:", baseUrl.toString());
+    //log("base url:", baseUrl.toString());
 
     baseUrl.searchParams.set('page', currPage);
     baseUrl.searchParams.set('sort', 'recent');
 
-    if (verbose) console.log("first base url:", baseUrl.toString());
+    if (verbose) log("first base url:", baseUrl.toString());
 
     let pageUrl = baseUrl.toString();
 
@@ -111,18 +115,19 @@ export async function tierMain(page, url, outFile, verbose) {
      */
 
     // find total number of pages by clicking the "last page" button
-    if (verbose) console.log("getting total number of pages");
+    if (verbose) log("getting total number of pages");
     await page.goto(pageUrl, { waitUntil: 'domcontentloaded' });
     try {
-        await page.waitForSelector('#pagination a.pagination', { timeout: 15000 }); // 15s timeout
+        await page.waitForSelector('#pagination a.pagination', { timeout: TIMEOUT });
     } catch (error) {
         console.error("Pagination not found, page may not be a valid category list:", error);
+        log(`ERROR: Pagination not found: ${error}`);
         return { error: "Timeout" };
     }
     const numPages = await page.evaluate(() => {
         // find the last page link
         const paginationLinks = document.querySelectorAll('#pagination a.pagination');
-        const lastPageLink = Array.from(paginationLinks).find(a => a.textContent.trim().toLowerCase() === 'last page');
+        const lastPageLink = Array.from(paginationLinks).find(a => a.textContent.toLowerCase().trim() === 'last page');
         if (lastPageLink) {
             // inside the link, get the href attribute
             const lastPageUrl = lastPageLink.getAttribute('href');
@@ -134,18 +139,28 @@ export async function tierMain(page, url, outFile, verbose) {
             return null;   // todo thow error here?
         }
     });
-    if (verbose) console.log("total number of pages:", numPages);
+    if (verbose) log("total number of pages:", numPages);
 
+    let numRetries = 0;
     while (currPage <= numPages) {
-        await page.goto(pageUrl, { waitUntil: 'domcontentloaded' });
+        try {
+            if (numRetries <= MAX_RETRIES) {
+                await page.goto(pageUrl, { waitUntil: 'domcontentloaded' });
+            } else { currPage++; continue; }
+        }
+        catch {
+            log(`failed to go to ${pageUrl}: Retry number ${numRetries++}`);
+            continue;
+        }
         // find the category page
-        if (verbose) console.log("waiting for category page");
+        //if (verbose) console.log("waiting for category page");
         try {
             await page.waitForSelector('#category-page', { timeout: 15000 }); // 15s timeout
         } catch (error) {
             console.error("failed to find page", pageUrl, "error:", error);
             if (currPage === 1) {
                 console.error("No items found on the first page, exiting.");
+                log("No items found on the first page, exiting.");
                 break;
             }
             else {
@@ -155,7 +170,7 @@ export async function tierMain(page, url, outFile, verbose) {
         }
 
         // get curr page urls
-        if (verbose) console.log("category page found: getting page urls for page " + currPage + ". Adding to set");
+        if (verbose) log("category page found: getting page urls for page " + currPage);
         const pageUrlsObjs = await getPageUrls(page);
 
         // insert into set
@@ -164,31 +179,6 @@ export async function tierMain(page, url, outFile, verbose) {
                 users.add(url);
             }
         });
-
-        // do this later with a page obj pool
-        /*// add page as promise
-        promises.push(getPageUrls(page))
-            .then(urls => {
-                retObj[currPage] = pageUrlsObjs;
-            })
-            .catch(error => {
-                console.error(`Error fetching page ${currPage}:`, error);
-                retObj[currPage] = { error: error.message };
-            });*/
-
-        // check if there are more pages "pagination" class + "next page >" text inside anchor tag
-        if (verbose) console.log("checking for next page button");
-
-        /*const hasNextPage = await page.evaluate(() => {
-            const paginationLinks = document.querySelectorAll('#pagination a.pagination');
-            console.log("found pagination links:", paginationLinks.length);
-            const texts = Array.from(paginationLinks).map(a => a.textContent.trim());
-            return texts.some(text => text.toLowerCase().includes('next page'));
-        });
-        if (!hasNextPage) {
-            if (verbose) console.log("no more pages found, exiting" + (currPage > 1 ? " after page " + currPage : ""));
-            break; // no more pages
-        }*/
 
         currPage++;
         baseUrl.searchParams.set('page', currPage);
@@ -205,7 +195,7 @@ export async function tierMain(page, url, outFile, verbose) {
 }
 
 async function getPageUrls(page) {
-        return await page.evaluate(() => {
+    return await page.evaluate(() => {
         // get the category page
         const categoryPage = document.querySelector('#category-page');
         if (!categoryPage) {
