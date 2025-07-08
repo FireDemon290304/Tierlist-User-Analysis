@@ -14,21 +14,15 @@ import time
 def start_server():
     print("starting node")
     node_server = subprocess.Popen(['node', 'js/server.js'])
-
-    # time.sleep(3)
-    print("done sleeping")
     return node_server
 
 
-def fetch(mainpage_url: str, outFileMain: str, outFileSub: str):
+def fetch(mainpage_url: str, outFileMain: str, outFileSub: str) -> None:
     node_proc = start_server()
     try:
 
         local = "http://localhost:3000"
         base = "https://tiermaker.com"
-
-        # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'
-        # url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"
 
         data1 = {
             "url": mainpage_url,                 # now is string
@@ -44,11 +38,14 @@ def fetch(mainpage_url: str, outFileMain: str, outFileSub: str):
         with open(outFileMain, 'r') as file:
             data = json.load(file)
 
-        for item in data:
-            print(item)
+        # for item in data:
+        #     print(item)
 
         absolute_urls = [f"{base}{path}" for path in data]
 
+        print("First few URLs:", absolute_urls[:3])
+
+        # todo fix format here or in js
         data2 = {
             "url": absolute_urls,                # now is list
             "outFile": outFileSub,
@@ -57,9 +54,11 @@ def fetch(mainpage_url: str, outFileMain: str, outFileSub: str):
         }
 
         print("Getting individual entries...")
-        requests.post(local + '/scrape', json=data2)
+        res = requests.post(local + '/scrape', json=data2)
 
-        print("stopping server")
+        res.raise_for_status()
+
+        print("...done\nstopping server...")
         requests.post(local + '/stop')
         # mind race condition
         # todo handle error responses
@@ -67,6 +66,7 @@ def fetch(mainpage_url: str, outFileMain: str, outFileSub: str):
         time.sleep(1)  # will do for now (raceing)
         node_proc.terminate()
         node_proc.wait()
+        print("...child killed")
 
 
 """

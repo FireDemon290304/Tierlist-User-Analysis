@@ -75,6 +75,7 @@ class TierListDataset:
     def all_item_ids(self) -> List[str]:
         # Get item ids (dict to rem dupes, and sort it)
         # Loop over all, since some users are pricks and enter new things, or leave out things
+        # from itertools import chain for making this more mem effecient
         return sorted({entry for tl in self.tierlists for row in tl.rows for entry in row.entries}, key=int)
 
     def usernames(self) -> List[str]:
@@ -91,8 +92,20 @@ class TierListDataset:
         tier_lists: List[TierList] = []
 
         with open(filename, 'r') as f:
-            for line in f:
-                raw = json.loads(line)
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(f"JSON decode error on line {line_num}: {e}")
+                    continue
+
+                if "rows" not in raw:
+                    print(f"Missing rows key for line {line_num}:\tSkipping")
+                    continue
+
                 rows = [TierRow(tier_name=r['tierName'], entries=r['entries']) for r in raw['rows']]
                 tierlist = TierList(username=raw['userName'], title=raw['title'], rows=rows)
                 tier_lists.append(tierlist)

@@ -5,9 +5,17 @@ import puppeteer from 'puppeteer';
 import pLimit from 'p-limit';
 import fs from 'fs';
 import { tierSub, tierMain } from './fetch.js';
+import { Mutex } from 'async-mutex';
 
 const PORT = 3000;
 const LOG_FILE = 'server.log';
+const mutex = new Mutex();
+
+async function writeFileAtomic(filePath, resObj) {
+    await mutex.runExclusive(() => {
+        fs.writeFileSync(filePath, JSON.stringify(resObj) + '\n', { flag: 'a' });
+    });
+}
 
 export function log(message) {
     const timestamp = new Date().toISOString();
@@ -39,7 +47,7 @@ const server = http.createServer((req, res) => {
                     // Initialize Puppeteer
                     const browser = await puppeteer.launch({ headless: true });
 
-                    const limit = pLimit(5); // Limit concurrent requests to 5
+                    const limit = pLimit(10); // Limit concurrent requests to x
 
                     if (isMain) {
                         // Scrape the mainpage
@@ -53,22 +61,28 @@ const server = http.createServer((req, res) => {
                         // Scrape the subpage(s)
                         if (Array.isArray(url)) {
                             // promise all the pages
-                            const errors = [];
-                            const results = await Promise.all(url.map(singleUrl =>
+                            //const errors = [];
+                            let numErr = 0;
+                            /*const results = */
+                            await Promise.all(url.map(singleUrl =>
                                 limit(async () => {
                                     //todo need a way to red log in the promise
                                     if (verbose) log(`Fetching tier list from ${singleUrl}`);
-                                    //verbose = false;
                                     const page = await getNewPage(browser, verbose);
-                                    //verbose = true;
+
                                     try {
-                                        return await tierSub(page, singleUrl, outFile, verbose);
+                                        const result = await tierSub(page, singleUrl, verbose);
+                                        await writeFileAtomic(outFile, result);
+                                        if (verbose) log(`Successfully processed ${singleUrl}`);
                                     }
                                     catch (error) {
-                                        console.error(`Error processing ${singleUrl}:`, error);
-                                        fs.appendFileSync(outFile, `Error processing ${singleUrl}: ${error.message}\n`);
-                                        errors.push({ url: singleUrl, error: error.message });
-                                        return { url: singleUrl, error: error.message };
+                                        const errObj = { url: singleUrl, error: error.message };
+                                        log(`Error processing ${singleUrl}: ${error.message}`);
+                                        await writeFileAtomic(outFile, errObj);
+                                        // If you want to collect errors, uncomment the following lines
+                                        //fs.appendFileSync(outFile, `Error processing ${singleUrl}: ${error.message}\n`);
+                                        //errors.push({ url: singleUrl, error: error.message });
+                                        //return { url: singleUrl, error: error.message };
                                     }
                                     finally {
                                         if (verbose) log("Finished processing", singleUrl);
@@ -77,15 +91,20 @@ const server = http.createServer((req, res) => {
                                 })
                             ));
 
-                            results.forEach(result => {
+                            /*results.forEach(result => {
                                 fs.appendFileSync(outFile, JSON.stringify(result) + '\n');
-                            });
+                            });*/
 
-                            if (errors.length > 0) {
+                            /*if (errors.length > 0) {
                                 console.error("Errors occurred during scraping:", errors);
                                 log(`Errors occurred during scraping: ${errors.toString()}`);
                                 res.writeHead(207, { 'Content-Type': 'application/json' });
                                 return res.end(JSON.stringify({ message: 'Some URLs failed to scrape', errors }));
+                            }*/
+                            if (numErr > 0) {
+                                log(`Errors occurred during scraping: ${numErr} URLs failed to scrape`);
+                                res.writeHead(207, { 'Content-Type': 'application/json' });
+                                return res.end(JSON.stringify({ message: 'Some URLs failed to scrape', errors: numErr }));
                             }
                         } else {
                             // single url
