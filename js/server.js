@@ -79,6 +79,7 @@ const server = http.createServer((req, res) => {
                                         const errObj = { url: singleUrl, error: error.message };
                                         log(`Error processing ${singleUrl}: ${error.message}`);
                                         await writeFileAtomic(outFile, errObj);
+                                        //todo make numErr += 1; work
                                         // If you want to collect errors, uncomment the following lines
                                         //fs.appendFileSync(outFile, `Error processing ${singleUrl}: ${error.message}\n`);
                                         //errors.push({ url: singleUrl, error: error.message });
@@ -91,9 +92,6 @@ const server = http.createServer((req, res) => {
                                 })
                             ));
 
-                            /*results.forEach(result => {
-                                fs.appendFileSync(outFile, JSON.stringify(result) + '\n');
-                            });*/
 
                             /*if (errors.length > 0) {
                                 console.error("Errors occurred during scraping:", errors);
@@ -110,7 +108,7 @@ const server = http.createServer((req, res) => {
                             // single url
                             if (verbose) log(`Fetching tier list from ${url}`);
                             const page = await getNewPage(browser, verbose);
-                            await tierSub(page, url, outFile, verbose);
+                            await tierSub(page, url, verbose);
                             await page.close();
                         }
                     }
@@ -126,6 +124,7 @@ const server = http.createServer((req, res) => {
                     res.end(JSON.stringify({ error: error.message }));
                 }
                 finally {
+                    // todo check if i need to close browser in finally (what if it failed to instansiate?)
                     //await browser.close();
                     log('Request processing completed');
                 }
@@ -139,6 +138,7 @@ const server = http.createServer((req, res) => {
                 log('Server stopped');
             });
 
+            //todo understand why this runs, even afer the server stops?
             setTimeout(() => {
                 log('Server close timeout, forcing shutdown');
                 process.exit(0);
