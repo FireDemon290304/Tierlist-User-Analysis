@@ -13,7 +13,8 @@ export async function tierSub(page, singleUrl, verbose) {
 
     if (verbose) console.log("waiting for tier container");
     try {
-        await page.waitForSelector('#tier-container', { timeout: 15000 }); // 15s timeout
+        await page.waitForSelector('#tier-container', { timeout: 25000 }); // 25s timeout
+        // made timeout lopnger to account for slow loading pages (since some tier lists have a lot of images)
     }
     catch (error) {
         console.error("Tier container not found, page may not be a valid tier list:", error);
@@ -193,7 +194,7 @@ export async function tierMain(page, url, outFile, verbose) {
         baseUrl.searchParams.set('page', currPage);
         pageUrl = baseUrl.toString();
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500)); // wait 500ms before next request
     }
 
     const retObj = JSON.stringify([...users], null, 2); // convert set to array and stringify
