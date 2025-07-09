@@ -6,12 +6,23 @@ import pLimit from 'p-limit';
 import fs from 'fs';
 import { tierSub, tierMain } from './fetch.js';
 import { Mutex } from 'async-mutex';
+/*import path from 'path';
+import { fileURLToPath } from 'url';*/
+
 
 const PORT = 3000;
 const LOG_FILE = 'server.log';
 const mutex = new Mutex();
 const MAX_CONCURRENT_REQUESTS = 6; // Limit concurrent requests to 10
 const MAX_PAGES = 10;
+
+/*const getPaths = (metaUrl) => {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const parentDir = path.dirname(__dirname);
+    const dataDir = path.join(parentDir, 'data');
+    return { __filename, __dirname, parentDir, dataDir };
+}*/
 
 class PagePool {
     constructor(browser, size, verbose) {
@@ -64,7 +75,6 @@ class PagePool {
     }
 }
 
-
 async function writeFileAtomic(filePath, resObj) {
     await mutex.runExclusive(() => {
         fs.writeFileSync(filePath, JSON.stringify(resObj) + '\n', { flag: 'a' });
@@ -89,6 +99,7 @@ const server = http.createServer((req, res) => {
                 try {
                     // Parse the JSON body
                     const { url, outFile, isMain, verbose } = JSON.parse(body);
+                    //const { __filename, __dirname, parentDir, dataDir } = getPaths(import.meta.url);
 
                     // Validate inputs
                     if (!url || !outFile) {

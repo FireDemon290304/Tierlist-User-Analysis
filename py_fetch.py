@@ -9,24 +9,29 @@ import json
 import subprocess
 import requests
 import time
+import os
 
 
 def start_server():
-    print("starting node")
+    print("spawning child...")
     node_server = subprocess.Popen(['node', 'js/server.js'])
+    print('child made')
     return node_server
 
 
-def fetch(mainpage_url: str, outFileMain: str, outFileSub: str) -> None:
+def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
     node_proc = start_server()
+    print('starting fetch')
     try:
-
         local = "http://localhost:3000"
         base = "https://tiermaker.com"
+        fileName = os.path.join(dataDir, name)
+        main = fileName + '.json'
+        sub = fileName + '.jsonl'
 
         data1 = {
             "url": mainpage_url,                 # now is string
-            "outFile": outFileMain,
+            "outFile": main,
             "isMain": True,
             "verbose": True
         }
@@ -35,7 +40,7 @@ def fetch(mainpage_url: str, outFileMain: str, outFileSub: str) -> None:
         requests.post(local + '/scrape', json=data1)
 
         # Get each entry
-        with open(outFileMain, 'r') as file:
+        with open(main, 'r') as file:
             data = json.load(file)
 
         # for item in data:
@@ -48,7 +53,7 @@ def fetch(mainpage_url: str, outFileMain: str, outFileSub: str) -> None:
         # todo fix format here or in js
         data2 = {
             "url": absolute_urls,                # now is list
-            "outFile": outFileSub,
+            "outFile": sub,
             "isMain": False,
             "verbose": False
         }
