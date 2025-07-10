@@ -6,7 +6,7 @@ Created on Mon Jul  7 13:18:47 2025
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Optional, Callable, Tuple
 from pathlib import Path
 import json
 import numpy as np
@@ -14,6 +14,7 @@ import pandas as pd
 from functools import cached_property
 import matplotlib.pyplot as plt
 import seaborn as sns
+from numba import njit
 
 
 @dataclass
@@ -84,6 +85,7 @@ class TierListDataset:
     def matrix(self) -> np.ndarray:
         return np.array([tl.to_vector(self.all_item_ids) for tl in self.tierlists])
 
+    # todo FIX THIS SHIT SO IT DOES NOT INCLUDE EMPTY OR DUPLICATE
     @classmethod
     def from_file(cls, filepath: str) -> "TierListDataset":
         tier_lists: List[TierList] = []
@@ -110,31 +112,55 @@ class TierListDataset:
         return cls(tierlists=tier_lists, datasetName=dataset_name)
 
     # Similarity of two users
-    def cosine_similarity(self, user1: int, user2: int) -> float:
+    def cosine_similarity(
+        self,
+        user1: int,
+        user2: int,
+        filter_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None
+    ) -> float:
         """
         Cosine similarity of two users.
+        If filter_fn is provided, it will be applied to the shared ratings before computing similarity.
+
         Returns a value in [-1, 1], where:
-          1   = same preferences,
+          1   = similair ,
           0   = orthogonal (no relation),
-         -1   = totally opposed.
+         -1   = opposed
         """
 
         u1, u2 = self.matrix[user1], self.matrix[user2]
 
-        # Only compare positions where both users have data (not -1)
         mask = (u1 != -1) & (u2 != -1)
-        if not np.any(mask):  # no shared ratings: no similarity/undefined
+
+        # Only compare positions where both users have data (not -1)
+        if not np.any(mask):
             return 0.0
 
         u1m, u2m = u1[mask], u2[mask]
-        norms = np.linalg.norm([u1m, u2m], axis=1)
 
+        if filter_fn:
+            u1m, u2m = filter_fn(u1m), filter_fn(u2m)
+
+        norms = np.linalg.norm([u1m, u2m], axis=1)
         if norms[0] == 0 or norms[1] == 0:
             return 0.0
 
-        return np.dot(u1, u2) / (norms[0] * norms[1])
+        return np.dot(u1m, u2m) / (norms[0] * norms[1])
 
-    # maybe cashe this, its expensive (kind of)
+    @staticmethod
+    @njit
+    def fast_cosine(u1, u2):
+        dot, norm1, norm2 = 0.0, 0.0, 0.0
+
+        for i in range(len(u1)):
+            if u1[i] != -1 and u2[i] != -1:
+                dot += u1[i] * u2[i]
+                norm1 += u1[i] ** 2
+                norm2 += u2[i] ** 2
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        return dot / (norm1**0.5 * norm2**0.5)
+
     @cached_property
     def similarity_matrix(self) -> np.ndarray:
         # def dim
@@ -144,18 +170,33 @@ class TierListDataset:
         # build
         for i in range(n):
             for j in range(i, n):  # start i stop n: uppertriangle (avoid double counting)
+                # s = self.fast_cosine(self.matrix[i], self.matrix[j])
                 s = self.cosine_similarity(i, j)
                 sim[i, j], sim[j, i] = s, s
-        print('made heatmap')
+
         return sim
 
-    def show_heatmap(self) -> None:
+    def filtered_similarity(self, filter_fn: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+        n = len(self.tierlists)
+        sim = np.zeros((n, n), dtype=float)
+
+        # todo filter vec i before, so no dup calcs
+        for i in range(n):
+            # v_i = filter_fn(self.tierlists[i].to_vector(self.all_item_ids))
+            for j in range(i, n):
+                # v_j = filter_fn(self.tierlists[j].to_vector(self.all_item_ids))
+                s = self.cosine_similarity(i, j, filter_fn)
+                # s = self.cosine_similarity(v_i, v_j, filter_fn)    # Error: this expects user index, not vectors themselves
+                sim[i, j], sim[j, i] = s, s
+        return sim
+
+    # todo do this when i have the energy
+    def cluster_matrix(self):
+        pass
+
+    def show_heatmap(self, data) -> None:
         plt.figure(figsize=(10, 8))
-        sns.heatmap(self.similarity_matrix,
-                    cmap='coolwarm',
-                    center=0,
-                    vmax=1,
-                    vmin=-1)
+        sns.clustermap(data, cmap='coolwarm', center=0, vmax=1, vmin=-1)
         plt.title(f"Usersimilarity Heatmap for '{self.datasetName}'")
         plt.xlabel('user')
         plt.ylabel('user')
@@ -165,6 +206,40 @@ class TierListDataset:
     def summaty_stats(self):
         """Calculate the rank and nullspace of the matrix, along with som other info (todo)."""
         pass
+
+    @staticmethod
+    def love_hate_filter(vector: np.ndarray) -> np.ndarray:
+        result = np.zeros_like(vector)
+        result[0] = vector[0]
+        result[-1] = vector[-1]
+        return result
+
+    @staticmethod
+    def top_n_filter(vector: np.array, n: int = 5) -> np.array:
+        mask = np.zeros_like(vector)
+        top_indices = np.argsort(vector)[-n:]
+        mask[top_indices] = 1
+        return vector * mask
+
+    @staticmethod
+    def non_neutral_filter(vector: np.array, neutral: Tuple[float, float]) -> np.array:
+        mask = (vector < neutral[0]) | (vector > neutral[1])
+        return vector * mask
+
+    @staticmethod
+    def z_extremes_filter(vector: np.array, z_threshold: float = 1.0) -> np.array:
+        """Only keep items that are extreme for that user. This detects personal outliers."""
+        mean = np.mean(vector)
+        std = np.std(vector)
+        z_scores = (vector - mean) / (std + 1e-9)
+        mask = np.abs(z_scores) > z_threshold
+        return vector * mask
+
+    @staticmethod
+    def demean_filter(vector: np.array) -> np.array:
+        mask = vector != 0
+        mean = np.sum(vector) / (np.count_nonzero(mask) + 1e-9)
+        return (vector - mean) * mask
 
     # Save to file
     def to_csv(self):

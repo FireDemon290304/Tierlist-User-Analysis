@@ -11,6 +11,7 @@ from parser import TierListDataset
 from py_fetch import fetch
 import os
 import re
+import pandas as pd
 # from typing import Set
 
 
@@ -67,16 +68,20 @@ def main():
     # find_dupes(outFileSub)
 
     dataset = TierListDataset.from_file(url_to_file(url, True))
-    print(dataset.cosine_similarity(0, 1))
 
-    print(dataset.to_dataframe())
+    # print(dataset.to_dataframe())
 
-    dataset.show_heatmap()
+    # print(pd.DataFrame(dataset.similarity_matrix))
 
-    # print(dataset.cosine_similarity(270, 271))
+    print(dataset.similarity_matrix)
+    # sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.love_hate_filter)
 
-    # print(dataset.similarity_matrix())
+    # dataset.show_heatmap(sim)
+    # dataset.show_heatmap(sim1)
 
+#    idx = 23
+#    print(dataset.matrix[idx])
+#    print(TierListDataset.love_hate_filter(dataset.matrix[idx]))
     pass
 
 
