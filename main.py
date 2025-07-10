@@ -23,8 +23,13 @@ def extract_clean_slug(url):
     return None
 
 
+def url_to_file(url: str, is_sub: bool):
+    name = extract_clean_slug(url)
+    return os.path.join(os.getcwd(), 'data', name + ('.jsonl' if is_sub else '.json'))
+
+
 def find_dupes(path):
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         seen = set()
         # num1 = Dict()
         numDupes = 0
@@ -40,10 +45,8 @@ def find_dupes(path):
         print(f'number of duplicates: {numDupes}')
 
 
-def print_df(url):
-    name = extract_clean_slug(url)
-    subFile = os.path.join(os.getcwd(), 'data', name + '.jsonl')
-    dataset = TierListDataset.from_file(subFile)
+def print_df(filepath):
+    dataset = TierListDataset.from_file(filepath)
     print("got dataset")
     print(dataset.to_dataframe())
 
@@ -54,14 +57,26 @@ def get_dataset(url):
 
 
 def main():
-    # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
+    # url = 'https://tiermaker.com/categories/aregentina/streamers-de-argentina-273542'
     # url = "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470"  # 33 of 8
+    # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
     # url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
     url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
-    # url = 'https://tiermaker.com/categories/aregentina/streamers-de-argentina-273542'
     # get_dataset(url)
-    print_df(url)
+    # print_df(url_to_file(url, True))
     # find_dupes(outFileSub)
+
+    dataset = TierListDataset.from_file(url_to_file(url, True))
+    print(dataset.cosine_similarity(0, 1))
+
+    print(dataset.to_dataframe())
+
+    dataset.show_heatmap()
+
+    # print(dataset.cosine_similarity(270, 271))
+
+    # print(dataset.similarity_matrix())
+
     pass
 
 

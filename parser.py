@@ -7,10 +7,13 @@ Created on Mon Jul  7 13:18:47 2025
 
 from dataclasses import dataclass
 from typing import List, Dict, Set, Optional
+from pathlib import Path
 import json
 import numpy as np
 import pandas as pd
 from functools import cached_property
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 @dataclass
@@ -30,16 +33,8 @@ class TierList:
     def __contains__(self, item_id: str) -> bool:
         pass
 
-    def score_map(self) -> Dict[str, int]:
-        pass
-
-    def tier_for(self, item_id: str) -> Optional[str]:
-        pass
-
-    def items(self) -> Set[str]:
-        pass
-
-    def to_vector(self, item_ids: List[str]) -> List[int]:
+    # @cached_property
+    def to_vector(self, item_ids: List[str]) -> np.array:
         """Convert TierList to a vector of normalised scores [0,1] based on tier position"""
 
         score_map: Dict[str, int] = {}
@@ -61,19 +56,13 @@ class TierList:
         # Loop through every item in the item_ids (the sorted list of all item entries)
         # get the score attached to that id inside the map
         # Returns a list of length item_ids (one for each possible item in the tierlist)
-        return [score_map.get(item_id, -1) for item_id in item_ids]
-
-    # todo
-    def similarity(other):
-        pass
-
-    def normalize_vector(vector):
-        pass
+        return np.array([score_map.get(item_id, -1) for item_id in item_ids], dtype=float)
 
 
 @dataclass
 class TierListDataset:
     tierlists: List[TierList]
+    datasetName: str
 
     # cashe this so that we dont have to calculate the set every time we need it
     # minor oversight
@@ -89,16 +78,18 @@ class TierListDataset:
         return [tl.username for tl in self.tierlists]
 
     def to_dataframe(self) -> pd.DataFrame:
-        return pd.DataFrame(self.matrix(), columns=self.all_item_ids, index=self.usernames())
+        return pd.DataFrame(self.matrix, columns=self.all_item_ids, index=self.usernames())
 
+    @cached_property
     def matrix(self) -> np.ndarray:
         return np.array([tl.to_vector(self.all_item_ids) for tl in self.tierlists])
 
     @classmethod
-    def from_file(cls, filename: str) -> "TierListDataset":
+    def from_file(cls, filepath: str) -> "TierListDataset":
         tier_lists: List[TierList] = []
+        dataset_name = Path(filepath).stem
 
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
                 if not line:
@@ -116,22 +107,65 @@ class TierListDataset:
                 rows = [TierRow(tier_name=r['tierName'], entries=r['entries']) for r in raw['rows']]
                 tierlist = TierList(username=raw['userName'], title=raw['title'], rows=rows)
                 tier_lists.append(tierlist)
-        return cls(tierlists=tier_lists)
+        return cls(tierlists=tier_lists, datasetName=dataset_name)
 
-    # Similarity of two users. Should call u1.similarity(u2) or something.
-    # maybe magic methods?
-    def cosine_similarity(user1, user2):
-        pass
+    # Similarity of two users
+    def cosine_similarity(self, user1: int, user2: int) -> float:
+        """
+        Cosine similarity of two users.
+        Returns a value in [-1, 1], where:
+          1   = same preferences,
+          0   = orthogonal (no relation),
+         -1   = totally opposed.
+        """
+
+        u1, u2 = self.matrix[user1], self.matrix[user2]
+
+        # Only compare positions where both users have data (not -1)
+        mask = (u1 != -1) & (u2 != -1)
+        if not np.any(mask):  # no shared ratings: no similarity/undefined
+            return 0.0
+
+        u1m, u2m = u1[mask], u2[mask]
+        norms = np.linalg.norm([u1m, u2m], axis=1)
+
+        if norms[0] == 0 or norms[1] == 0:
+            return 0.0
+
+        return np.dot(u1, u2) / (norms[0] * norms[1])
+
+    # maybe cashe this, its expensive (kind of)
+    @cached_property
+    def similarity_matrix(self) -> np.ndarray:
+        # def dim
+        n = len(self.tierlists)
+        sim = np.zeros(shape=(n, n), dtype=float)  # make arr of dim n,n. fill zeros
+
+        # build
+        for i in range(n):
+            for j in range(i, n):  # start i stop n: uppertriangle (avoid double counting)
+                s = self.cosine_similarity(i, j)
+                sim[i, j], sim[j, i] = s, s
+        print('made heatmap')
+        return sim
+
+    def show_heatmap(self) -> None:
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(self.similarity_matrix,
+                    cmap='coolwarm',
+                    center=0,
+                    vmax=1,
+                    vmin=-1)
+        plt.title(f"Usersimilarity Heatmap for '{self.datasetName}'")
+        plt.xlabel('user')
+        plt.ylabel('user')
+        plt.show()
 
     # Get summary of stats(?)
-    def summatr_stats(self):
+    def summaty_stats(self):
+        """Calculate the rank and nullspace of the matrix, along with som other info (todo)."""
         pass
 
     # Save to file
     def to_csv(self):
-        pass
-
-    # Remake the tierscores to just be s+, s, a etc.,
-    # and fit custom in those bounds to avoid -1 entries
-    def normalise_ranks(self):
         pass
