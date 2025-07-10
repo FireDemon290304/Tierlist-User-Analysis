@@ -11,7 +11,7 @@ from parser import TierListDataset
 from py_fetch import fetch
 import os
 import re
-import pandas as pd
+# import pandas as pd
 # from typing import Set
 
 
@@ -61,8 +61,8 @@ def main():
     # url = 'https://tiermaker.com/categories/aregentina/streamers-de-argentina-273542'
     # url = "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470"  # 33 of 8
     # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
-    # url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
-    url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
+    url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
+    # url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
     # get_dataset(url)
     # print_df(url_to_file(url, True))
     # find_dupes(outFileSub)
@@ -73,11 +73,17 @@ def main():
 
     # print(pd.DataFrame(dataset.similarity_matrix))
 
-    print(dataset.similarity_matrix)
-    # sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.love_hate_filter)
+    # sim = dataset.similarity_matrix
+    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
+    sim2 = dataset.sim_test2()
+
+    # print(sim, '\n')
+    print(sim1, '\n')
+    print(sim2)
 
     # dataset.show_heatmap(sim)
     # dataset.show_heatmap(sim1)
+    # dataset.show_heatmap(sim2)
 
 #    idx = 23
 #    print(dataset.matrix[idx])

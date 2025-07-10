@@ -151,7 +151,6 @@ class TierListDataset:
     @njit
     def fast_cosine(u1, u2):
         dot, norm1, norm2 = 0.0, 0.0, 0.0
-
         for i in range(len(u1)):
             if u1[i] != -1 and u2[i] != -1:
                 dot += u1[i] * u2[i]
@@ -170,8 +169,7 @@ class TierListDataset:
         # build
         for i in range(n):
             for j in range(i, n):  # start i stop n: uppertriangle (avoid double counting)
-                # s = self.fast_cosine(self.matrix[i], self.matrix[j])
-                s = self.cosine_similarity(i, j)
+                s = self.fast_cosine(self.matrix[i], self.matrix[j])
                 sim[i, j], sim[j, i] = s, s
 
         return sim
@@ -189,6 +187,18 @@ class TierListDataset:
                 # s = self.cosine_similarity(v_i, v_j, filter_fn)    # Error: this expects user index, not vectors themselves
                 sim[i, j], sim[j, i] = s, s
         return sim
+
+    def sim_test(self) -> np.ndarray:
+        filtered = self.matrix[:, [0, -1]]
+        norms = np.linalg.norm(filtered, axis=1, keepdims=True)
+        normalised = filtered / (norms + 1e-10)
+        return normalised @ normalised.T
+
+    def sim_test2(self, n: int = 2) -> np.ndarray:
+        filtered = self.matrix[:, :n]
+        norms = np.linalg.norm(filtered, axis=1, keepdims=True)
+        normalised = filtered / (norms + 1e-10)
+        return normalised @ normalised.T
 
     # todo do this when i have the energy
     def cluster_matrix(self):
@@ -215,10 +225,9 @@ class TierListDataset:
         return result
 
     @staticmethod
-    def top_n_filter(vector: np.array, n: int = 5) -> np.array:
+    def top_n_filter(vector: np.array, n: int = 2) -> np.array:
         mask = np.zeros_like(vector)
-        top_indices = np.argsort(vector)[-n:]
-        mask[top_indices] = 1
+        mask[:n] = 1
         return vector * mask
 
     @staticmethod
@@ -238,7 +247,7 @@ class TierListDataset:
     @staticmethod
     def demean_filter(vector: np.array) -> np.array:
         mask = vector != 0
-        mean = np.sum(vector) / (np.count_nonzero(mask) + 1e-9)
+        mean = np.sum(vector) / (np.count_nonzero(mask) + 1e-10)
         return (vector - mean) * mask
 
     # Save to file
