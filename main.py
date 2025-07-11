@@ -60,12 +60,15 @@ def get_dataset(url):
 
 
 def main():
-    url = urls[-1]
-    dataset = TierListDataset.from_file(url_to_file(url, True))
+    url = urls[0]
+
+    get_dataset(url)
+
+#    dataset = TierListDataset.from_file(url_to_file(url, True))
 
     # print(dataset.all_item_ids)
 
-    dataset.print_user(0)
+    # dataset.print_user(0)
 
 #    sim = dataset.similarity_matrix
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)

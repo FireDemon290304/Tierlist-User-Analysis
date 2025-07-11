@@ -41,12 +41,12 @@ def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
 
         # Get each entry
         with open(main, 'r') as file:
-            data = json.load(file)
+            data = [line.strip().strip('"') for line in file]
 
         # for item in data:
         #     print(item)
 
-        absolute_urls = [f"{base}{path}" for path in data]
+        absolute_urls = [base + path for path in data]
 
         print("First few URLs:", absolute_urls[:3])
 

@@ -75,7 +75,7 @@ class PagePool {
     }
 }
 
-async function writeFileAtomic(filePath, resObj) {
+export async function writeFileAtomic(filePath, resObj) {
     await mutex.runExclusive(() => {
         fs.writeFileSync(filePath, JSON.stringify(resObj) + '\n', { flag: 'a' });
     });
@@ -115,6 +115,7 @@ const server = http.createServer((req, res) => {
                     await pagePool.init();
 
                     const limit = pLimit(MAX_CONCURRENT_REQUESTS); // Limit concurrent requests to x
+                    fs.writeFileSync(outFile, ''); // empty the file to avoid appending to old data
 
                     if (isMain) {
                         // Scrape the mainpage

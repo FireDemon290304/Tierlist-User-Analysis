@@ -1,7 +1,7 @@
 "use strict";
 
 import fs from 'fs';
-import { log } from './server.js';
+import { log, writeFileAtomic } from './server.js';
 // dont use log, the page console will log to the serve, who will log to the file
 
 const MAX_RETRIES = 3;
@@ -174,9 +174,15 @@ export async function tierMain(page, url, outFile, verbose) {
         const pageUrlsObjs = await getPageUrls(page);
 
         // insert into set
-        pageUrlsObjs.forEach(url => {
+        /*pageUrlsObjs.forEach(url => {
             if (url) {
                 users.add(url);
+            }
+        });*/
+        pageUrlsObjs.forEach(async element => {
+            if (element && !users.has(element)) {
+                users.add(element);
+                await writeFileAtomic(outFile, element);
             }
         });
 
@@ -187,11 +193,11 @@ export async function tierMain(page, url, outFile, verbose) {
         await new Promise(resolve => setTimeout(resolve, 500)); // wait 500ms before next request
     }
 
-    const retObj = JSON.stringify([...users], null, 2); // convert set to array and stringify
+    //const retObj = JSON.stringify([...users], null, 2); // convert set to array and stringify
 
-    if (verbose) console.log("got:", retObj);
-    fs.writeFileSync(outFile, retObj);
-    if (verbose) console.log("wrote to file", outFile);
+    //if (verbose) console.log("got:", retObj);
+    //fs.writeFileSync(outFile, retObj);
+    //if (verbose) console.log("wrote to file", outFile);
 }
 
 async function getPageUrls(page) {

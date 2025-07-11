@@ -60,7 +60,7 @@ class TierList:
             # norm = lambda i: i / (num_tiers - 1)   # scale [0, 1] because some users add extra tiers
             # todo check coeefecient (4 as of now) to see what works best
             # result is range from -(co/2) to +(co/2)
-            co: int = 2
+            co: int = 3
             # norm = lambda i: (co / 2) - co * (i / (num_tiers - 1))      # Mult 4 to make diff more apparent
             # norm = lambda i: 2 * (i / (num_tiers - 1)) - 1  # flip if wrong
             values = np.linspace(co, -co, num=num_tiers)
