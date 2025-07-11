@@ -46,12 +46,6 @@ def find_dupes(path):
         print(f'number of duplicates: {numDupes}')
 
 
-def print_df(filepath):
-    dataset = TierListDataset.from_file(filepath)
-    print("got dataset")
-    print(dataset.to_dataframe())
-
-
 def get_dataset(url):
     name = extract_clean_slug(url)
     fetch(url, os.path.join(os.getcwd(), 'data'), name)
@@ -63,31 +57,22 @@ def main():
     # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
     url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
     # url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
-    # get_dataset(url)
-    # print_df(url_to_file(url, True))
-    # find_dupes(outFileSub)
 
     dataset = TierListDataset.from_file(url_to_file(url, True))
 
     # print(dataset.to_dataframe())
 
-    # print(pd.DataFrame(dataset.similarity_matrix))
+    sim = dataset.similarity_matrix
+#    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
+#    sim2 = dataset.sim_test2()
 
-    # sim = dataset.similarity_matrix
-    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
-    sim2 = dataset.sim_test2()
+    dataset.show_heatmap(sim)
+#    dataset.show_heatmap(sim1)
+#    dataset.show_heatmap(sim2)
 
-    # print(sim, '\n')
-    print(sim1, '\n')
-    print(sim2)
-
-    # dataset.show_heatmap(sim)
-    # dataset.show_heatmap(sim1)
-    # dataset.show_heatmap(sim2)
-
-#    idx = 23
-#    print(dataset.matrix[idx])
-#    print(TierListDataset.love_hate_filter(dataset.matrix[idx]))
+    #    idx = 23
+    #    print(dataset.matrix[idx])
+    #    print(TierListDataset.love_hate_filter(dataset.matrix[idx]))
     pass
 
 

@@ -17,6 +17,10 @@ import seaborn as sns
 from numba import njit
 
 
+def has_nan(vec) -> bool:
+    return np.isnan(vec).any()
+
+
 @dataclass
 class TierRow:
     """Row = User"""
@@ -34,7 +38,6 @@ class TierList:
     def __contains__(self, item_id: str) -> bool:
         pass
 
-    # @cached_property
     def to_vector(self, item_ids: List[str]) -> np.array:
         """Convert TierList to a vector of normalised scores [0,1] based on tier position"""
 
@@ -46,18 +49,23 @@ class TierList:
             norm = lambda x: 1.0    # Everyone treated as max
         else:
             # i divided by hightest possible score
-            norm = lambda i: i / (num_tiers - 1)   # scale [0, 1] because some users add extra tiers
+            # norm = lambda i: i / (num_tiers - 1)   # scale [0, 1] because some users add extra tiers
+            # todo check coeefecient (4 as of now) to see what works best
+            # result is range from -(co/2) to +(co/2)
+            co: int = 4
+            norm = lambda i: (co / 2) - co * (i / (num_tiers - 1))      # Mult 4 to make diff more apparent
+            # norm = lambda i: 2 * (i / (num_tiers - 1)) - 1  # flip if wrong
 
         # make a map to dictate how valuable each row is
         for idx, row in enumerate(reversed(self.rows)):
-            score = round(norm(idx), 3)  # index starts at 0, add one because its nicer
+            score = round(norm(idx), 3)
             for entry in row.entries:
                 score_map[entry] = score
 
         # Loop through every item in the item_ids (the sorted list of all item entries)
         # get the score attached to that id inside the map
         # Returns a list of length item_ids (one for each possible item in the tierlist)
-        return np.array([score_map.get(item_id, -1) for item_id in item_ids], dtype=float)
+        return np.array([score_map.get(item_id, np.nan) for item_id in item_ids], dtype=float)
 
 
 @dataclass
@@ -65,9 +73,6 @@ class TierListDataset:
     tierlists: List[TierList]
     datasetName: str
 
-    # cashe this so that we dont have to calculate the set every time we need it
-    # minor oversight
-    # added: went from 1,34m runtime for PMG1 to 625ms
     @cached_property
     def all_item_ids(self) -> List[str]:
         # Get item ids (dict to rem dupes, and sort it)
@@ -81,41 +86,21 @@ class TierListDataset:
     def to_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(self.matrix, columns=self.all_item_ids, index=self.usernames())
 
+    # todo stop ignoring nans. infer elsewhere
     @cached_property
     def matrix(self) -> np.ndarray:
-        return np.array([tl.to_vector(self.all_item_ids) for tl in self.tierlists])
+        arr = [
+            tl.to_vector(self.all_item_ids)
+            for tl in self.tierlists
+            if not has_nan(tl.to_vector(self.all_item_ids))]
+        return np.array(arr)
 
-    # todo FIX THIS SHIT SO IT DOES NOT INCLUDE EMPTY OR DUPLICATE
-    @classmethod
-    def from_file(cls, filepath: str) -> "TierListDataset":
-        tier_lists: List[TierList] = []
-        dataset_name = Path(filepath).stem
-
-        with open(filepath, 'r', encoding='utf-8') as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    raw = json.loads(line)
-                except json.JSONDecodeError as e:
-                    print(f"JSON decode error on line {line_num}: {e}")
-                    continue
-
-                if "rows" not in raw:
-                    print(f"Missing rows key for line {line_num}:\tSkipping")
-                    continue
-
-                rows = [TierRow(tier_name=r['tierName'], entries=r['entries']) for r in raw['rows']]
-                tierlist = TierList(username=raw['userName'], title=raw['title'], rows=rows)
-                tier_lists.append(tierlist)
-        return cls(tierlists=tier_lists, datasetName=dataset_name)
-
+    # todo dix nans
     # Similarity of two users
     def cosine_similarity(
         self,
-        user1: int,
-        user2: int,
+        user1: int | np.ndarray,
+        user2: int | np.ndarray,
         filter_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None
     ) -> float:
         """
@@ -128,15 +113,15 @@ class TierListDataset:
          -1   = opposed
         """
 
-        u1, u2 = self.matrix[user1], self.matrix[user2]
+        u1, u2 = (self.matrix[v] if not isinstance(v, np.ndarray) else v for v in (user1, user2))
 
-        mask = (u1 != -1) & (u2 != -1)
+        mask = (u1 != np.nan) & (u2 != np.nan)
 
-        # Only compare positions where both users have data (not -1)
+        # Only compare positions where both users have data
         if not np.any(mask):
             return 0.0
 
-        u1m, u2m = u1[mask], u2[mask]
+        u1m, u2m = u1 * mask, u2 * mask
 
         if filter_fn:
             u1m, u2m = filter_fn(u1m), filter_fn(u2m)
@@ -147,44 +132,48 @@ class TierListDataset:
 
         return np.dot(u1m, u2m) / (norms[0] * norms[1])
 
+    # todo deal with nan better
     @staticmethod
     @njit
     def fast_cosine(u1, u2):
         dot, norm1, norm2 = 0.0, 0.0, 0.0
         for i in range(len(u1)):
-            if u1[i] != -1 and u2[i] != -1:
+            if u1[i] != np.nan and u2[i] != np.nan:
                 dot += u1[i] * u2[i]
                 norm1 += u1[i] ** 2
                 norm2 += u2[i] ** 2
-        if norm1 == 0 or norm2 == 0:
+        if norm1 == 0.0 or norm2 == 0.0:
             return 0.0
         return dot / (norm1**0.5 * norm2**0.5)
 
     @cached_property
     def similarity_matrix(self) -> np.ndarray:
         # def dim
-        n = len(self.tierlists)
+        n = len(self.matrix)
         sim = np.zeros(shape=(n, n), dtype=float)  # make arr of dim n,n. fill zeros
 
         # build
         for i in range(n):
             for j in range(i, n):  # start i stop n: uppertriangle (avoid double counting)
-                s = self.fast_cosine(self.matrix[i], self.matrix[j])
+                # todo handle np.nan entries
+                u, v = self.matrix[i], self.matrix[j]
+                # s = float('-inf') if has_nan(u) or has_nan(v) else self.fast_cosine(u, v)
+                s = self.fast_cosine(u, v)
                 sim[i, j], sim[j, i] = s, s
 
         return sim
 
     def filtered_similarity(self, filter_fn: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
-        n = len(self.tierlists)
+        n = len(self.matrix)
         sim = np.zeros((n, n), dtype=float)
 
         # todo filter vec i before, so no dup calcs
         for i in range(n):
-            # v_i = filter_fn(self.tierlists[i].to_vector(self.all_item_ids))
+            v_i = filter_fn(self.matrix[i])
             for j in range(i, n):
-                # v_j = filter_fn(self.tierlists[j].to_vector(self.all_item_ids))
-                s = self.cosine_similarity(i, j, filter_fn)
-                # s = self.cosine_similarity(v_i, v_j, filter_fn)    # Error: this expects user index, not vectors themselves
+                v_j = filter_fn(self.matrix[j])
+                # s = self.cosine_similarity(i, j, filter_fn)
+                s = self.cosine_similarity(v_i, v_j, filter_fn)
                 sim[i, j], sim[j, i] = s, s
         return sim
 
@@ -194,28 +183,11 @@ class TierListDataset:
         normalised = filtered / (norms + 1e-10)
         return normalised @ normalised.T
 
-    def sim_test2(self, n: int = 2) -> np.ndarray:
+    def sim_test2(self, n: int = 3) -> np.ndarray:
         filtered = self.matrix[:, :n]
         norms = np.linalg.norm(filtered, axis=1, keepdims=True)
         normalised = filtered / (norms + 1e-10)
         return normalised @ normalised.T
-
-    # todo do this when i have the energy
-    def cluster_matrix(self):
-        pass
-
-    def show_heatmap(self, data) -> None:
-        plt.figure(figsize=(10, 8))
-        sns.clustermap(data, cmap='coolwarm', center=0, vmax=1, vmin=-1)
-        plt.title(f"Usersimilarity Heatmap for '{self.datasetName}'")
-        plt.xlabel('user')
-        plt.ylabel('user')
-        plt.show()
-
-    # Get summary of stats(?)
-    def summaty_stats(self):
-        """Calculate the rank and nullspace of the matrix, along with som other info (todo)."""
-        pass
 
     @staticmethod
     def love_hate_filter(vector: np.ndarray) -> np.ndarray:
@@ -225,13 +197,13 @@ class TierListDataset:
         return result
 
     @staticmethod
-    def top_n_filter(vector: np.array, n: int = 2) -> np.array:
+    def top_n_filter(vector: np.array, n: int = 3) -> np.array:
         mask = np.zeros_like(vector)
         mask[:n] = 1
         return vector * mask
 
     @staticmethod
-    def non_neutral_filter(vector: np.array, neutral: Tuple[float, float]) -> np.array:
+    def non_neutral_filter(vector: np.array, neutral: Tuple[float, float] = (-0.5, 0.5)) -> np.array:
         mask = (vector < neutral[0]) | (vector > neutral[1])
         return vector * mask
 
@@ -249,6 +221,66 @@ class TierListDataset:
         mask = vector != 0
         mean = np.sum(vector) / (np.count_nonzero(mask) + 1e-10)
         return (vector - mean) * mask
+
+    # Get summary of stats(?)
+    def summaty_stats(self):
+        """Calculate the rank and nullspace of the matrix, along with som other info (todo)."""
+        pass
+
+    def show_heatmap(self, data, bound: int = 1) -> None:
+        plt.figure(figsize=(10, 8))
+        sns.clustermap(data, cmap='coolwarm', center=0, vmax=bound, vmin=-bound)
+        plt.title(f"Usersimilarity Heatmap for '{self.datasetName.upper()}'")
+        plt.xlabel('user')
+        plt.ylabel('user')
+        plt.show()
+
+    @classmethod
+    def from_file(cls, filepath: str) -> "TierListDataset":
+        tier_lists: List[TierList] = []
+        dataset_name = Path(filepath).stem
+
+        with open(filepath, 'r', encoding='utf-8') as f:
+            seen = set()
+
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(f"JSON decode error on line {line_num}:\t\t{e}")
+                    continue
+
+                if "rows" not in raw:
+                    print(f"Missing rows key for line {line_num}:\t\tSkipping")
+                    continue
+
+                rows = [TierRow(tier_name=r['tierName'], entries=r['entries']) for r in raw['rows']]
+                tierlist = TierList(username=raw['userName'], title=raw['title'], rows=rows)
+
+                if line not in seen:
+                    # Skip users with less than 3 tier ranks
+                    # also skips users who only have one single tier with everything in it
+                    num_entries = 0
+                    for trow in tierlist.rows:
+                        if len(trow.entries) > 1:
+                            num_entries += 1
+
+                    if len(tierlist.rows) < 3 or num_entries < 3:
+                        print(f"no data for user '{tierlist.username}' on line {line_num}")
+                        continue
+
+                    tier_lists.append(tierlist)
+#                    if tierlist.username != 'Unknown User':
+                    seen.add(line)
+                else:
+                    print(f"skip exact string duplicate for user: '{tierlist.username}' on line {line_num}")
+                    # print(f"skip duplicate user: '{tierlist.username}' on line {line_num}")
+
+        print(f"\nfinished parsing entries for {dataset_name.upper()}\n\n")
+        return cls(tierlists=tier_lists, datasetName=dataset_name)
 
     # Save to file
     def to_csv(self):
