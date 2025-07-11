@@ -14,7 +14,7 @@ import pandas as pd
 from functools import cached_property
 import matplotlib.pyplot as plt
 import seaborn as sns
-from numba import njit, jit
+from numba import njit  # , jit
 
 
 # using njit because we have checks which cannot be easily vecotrized by numpy
@@ -101,8 +101,19 @@ class TierListDataset:
         arr = [
             vec
             for tl in self.tierlists
-            if (vec := tl.to_vector(self.all_item_ids)) is not None and not has_nan(vec)]
-        return np.array(arr)
+            if (vec := tl.to_vector(self.all_item_ids)) is not None  # and not has_nan(vec)
+        ]
+
+        arr = np.array(arr)
+
+        # get the mean value associated with each item
+        item_means = np.nanmean(arr, axis=0)
+
+        # replace nans
+        nans = np.isnan(arr)
+        arr[nans] = np.take(item_means, np.where(nans)[1])
+
+        return arr
 
     # todo dix nans
     # Similarity of two users
@@ -264,6 +275,10 @@ class TierListDataset:
 
         with open(filepath, 'r', encoding='utf-8') as f:
             seen = set()
+            num_exact_copies = 0
+            num_missing_key = 0
+            num_no_data = 0
+            num_correct = 0
 
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
@@ -276,7 +291,8 @@ class TierListDataset:
                     continue
 
                 if "rows" not in raw:
-                    print(f"Missing rows key for line {line_num}:\t\tSkipping")
+                    print(f"Missing rows key for line {line_num}")
+                    num_missing_key += 1
                     continue
 
                 rows = [TierRow(tier_name=r['tierName'], entries=r['entries']) for r in raw['rows']]
@@ -285,23 +301,32 @@ class TierListDataset:
                 if line not in seen:
                     # Skip users with less than 3 tier ranks
                     # also skips users who only have one single tier with everything in it
-                    num_entries = 0
+                    num_filled_lists = 0
                     for trow in tierlist.rows:
                         if len(trow.entries) > 1:
-                            num_entries += 1
+                            num_filled_lists += 1
 
-                    if len(tierlist.rows) < 3 or num_entries < 3:
-                        print(f"no data for user '{tierlist.username}' on line {line_num}")
+                    # ignore those who put everything inside one or two tiers
+                    # and who make empty lists
+                    if len(tierlist.rows) < 3 or num_filled_lists < 3:
+                        print(f"No data for user '{tierlist.username}' on line {line_num}")
+                        num_no_data += 1
                         continue
 
+                    num_correct += 1
                     tier_lists.append(tierlist)
-#                    if tierlist.username != 'Unknown User':
                     seen.add(line)
                 else:
-                    print(f"skip exact string duplicate for user: '{tierlist.username}' on line {line_num}")
+                    print(f"Skipping exact string duplicate for user: '{tierlist.username}' on line {line_num}")
+                    num_exact_copies += 1
                     # print(f"skip duplicate user: '{tierlist.username}' on line {line_num}")
 
-        print(f"\nfinished parsing entries for {dataset_name.upper()}\n\n")
+        total = num_correct + num_exact_copies + num_missing_key + num_no_data
+        fraction: float = num_correct / total
+        procent = round(fraction * 100, 3)
+        print(f"\nfinished parsing entries for {dataset_name.upper()}\n")
+        print(f"For the sake of quantifying my frustration:\n\tNumber of currupted entries:\t\t\t\t\t\t\t\t\t\t{num_missing_key}\n\tNumber of users who made malformed lists:\t\t\t\t\t\t\t{num_no_data}\n\tNumber of times a list was submitted multiple times:\t\t\t\t{num_exact_copies}\n\nLeaving the 'grand total' number of accepted entries as:\t\t\t\t{num_correct}\n(Which includes those who submitted lists with missing items...)")
+        print(f"This brings the procentage of users who can read up to {procent} %")
         return cls(tierlists=tier_lists, datasetName=dataset_name)
 
     # Save to file

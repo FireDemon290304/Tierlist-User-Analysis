@@ -14,6 +14,14 @@ import re
 # import pandas as pd
 # from typing import Set
 
+urls = [
+    'https://tiermaker.com/categories/aregentina/streamers-de-argentina-273542',
+    "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470",  # 33 of 8
+    'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862',  # 44 of 8
+    "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862",  # 186 of 8
+    "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
+]
+
 
 def extract_clean_slug(url):
     match = re.search(r'tiermaker\.com/categories/[^/]+/([^/?#]+)', url)
@@ -52,25 +60,22 @@ def get_dataset(url):
 
 
 def main():
-    # url = 'https://tiermaker.com/categories/aregentina/streamers-de-argentina-273542'
-    # url = "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470"  # 33 of 8
-    # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
-    url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
-    # url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
-
+    url = urls[-1]
     dataset = TierListDataset.from_file(url_to_file(url, True))
+
+    # print(dataset.all_item_ids)
 
     # print(dataset.to_dataframe())
 
 #    sim = dataset.similarity_matrix
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
-    sim2 = dataset.top_n_2(3)
+#    sim2 = dataset.top_n_2(3)
 
-    print('got sims')
+#    print('got sims')
 
 #    dataset.show_heatmap(sim)
 #    dataset.show_heatmap(sim1)
-    dataset.show_heatmap(sim2)
+#    dataset.show_heatmap(sim2)
 
     #    idx = 23
     #    print(dataset.matrix[idx])
