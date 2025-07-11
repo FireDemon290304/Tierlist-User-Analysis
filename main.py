@@ -65,7 +65,7 @@ def main():
 
     # print(dataset.all_item_ids)
 
-    # print(dataset.to_dataframe())
+    dataset.print_user(0)
 
 #    sim = dataset.similarity_matrix
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)

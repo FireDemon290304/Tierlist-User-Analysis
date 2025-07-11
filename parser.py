@@ -53,19 +53,21 @@ class TierList:
 
         if num_tiers < 2:
             # edge: one or empty
-            norm = lambda x: 1.0    # Everyone treated as max
+            # norm = lambda x: 1.0    # Everyone treated as max
+            values = [1.0]
         else:
             # i divided by hightest possible score
             # norm = lambda i: i / (num_tiers - 1)   # scale [0, 1] because some users add extra tiers
             # todo check coeefecient (4 as of now) to see what works best
             # result is range from -(co/2) to +(co/2)
-            co: int = 4
-            norm = lambda i: (co / 2) - co * (i / (num_tiers - 1))      # Mult 4 to make diff more apparent
+            co: int = 2
+            # norm = lambda i: (co / 2) - co * (i / (num_tiers - 1))      # Mult 4 to make diff more apparent
             # norm = lambda i: 2 * (i / (num_tiers - 1)) - 1  # flip if wrong
+            values = np.linspace(co, -co, num=num_tiers)
 
         # make a map to dictate how valuable each row is
-        for idx, row in enumerate(reversed(self.rows)):
-            score = round(norm(idx), 3)
+        for idx, row in enumerate(self.rows):
+            score = values[idx]
             for entry in row.entries:
                 score_map[entry] = score
 
@@ -324,10 +326,13 @@ class TierListDataset:
         total = num_correct + num_exact_copies + num_missing_key + num_no_data
         fraction: float = num_correct / total
         procent = round(fraction * 100, 3)
-        print(f"\nfinished parsing entries for {dataset_name.upper()}\n")
+        print(f"\nFinished parsing entries for {dataset_name.upper()}\n")
         print(f"For the sake of quantifying my frustration:\n\tNumber of currupted entries:\t\t\t\t\t\t\t\t\t\t{num_missing_key}\n\tNumber of users who made malformed lists:\t\t\t\t\t\t\t{num_no_data}\n\tNumber of times a list was submitted multiple times:\t\t\t\t{num_exact_copies}\n\nLeaving the 'grand total' number of accepted entries as:\t\t\t\t{num_correct}\n(Which includes those who submitted lists with missing items...)")
-        print(f"This brings the procentage of users who can read up to {procent} %")
+        print(f"This brings the procentage of users who can read up to {procent} %\n\n\n")
         return cls(tierlists=tier_lists, datasetName=dataset_name)
+
+    def print_user(self, n: int):
+        print(self.matrix[n])
 
     # Save to file
     def to_csv(self):

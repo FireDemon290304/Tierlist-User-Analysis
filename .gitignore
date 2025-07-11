@@ -160,4 +160,4 @@ cython_debug/
 #.idea/
 /data
 /js/node_modules
-temp.jsonl
+temp.json
