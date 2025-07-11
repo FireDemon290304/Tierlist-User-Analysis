@@ -3,26 +3,19 @@
 import http from 'http';
 import puppeteer from 'puppeteer';
 import pLimit from 'p-limit';
-import fs from 'fs';
+import fs, { read } from 'fs';
 import { tierSub, tierMain } from './fetch.js';
 import { Mutex } from 'async-mutex';
+import readline from 'readline';
 /*import path from 'path';
 import { fileURLToPath } from 'url';*/
 
 
 const PORT = 3000;
 const LOG_FILE = 'server.log';
-const mutex = new Mutex();
 const MAX_CONCURRENT_REQUESTS = 6; // Limit concurrent requests to 10
 const MAX_PAGES = 10;
-
-/*const getPaths = (metaUrl) => {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const parentDir = path.dirname(__dirname);
-    const dataDir = path.join(parentDir, 'data');
-    return { __filename, __dirname, parentDir, dataDir };
-}*/
+const mutex = new Mutex();
 
 class PagePool {
     constructor(browser, size, verbose) {
@@ -43,8 +36,23 @@ class PagePool {
     async createPage() {
         const page = await this.browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
-        await page.setExtraHTTPHeaders({'Accept-Language': 'en-US,en;q=0.9'});
-        if (this.verbose) page.on('console', msg => {const url = page.url() || 'about:blank'; log(`PAGE ${url} LOG: ${msg.text()}`);});
+        await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+        if (this.verbose) {
+            page.on('console', msg => {
+                const url = page.url() || 'about:blank';
+                const urlObj = new URL(url);
+
+                // Extract path segments
+                const pathParts = urlObj.pathname.split('/');
+                const catNameId = pathParts[pathParts.length - 1];
+
+                // Extract page number from query parameters
+                const pageNumber = urlObj.searchParams.get('page') || '-1';
+
+                // Enhanced log format with consistent spacing and structure
+                log(`[${new Date().toISOString()}] PAGE ${catNameId}-p${pageNumber} LOG: ${msg.text()}`);
+            });
+        }
         return page;
     }
 
@@ -89,143 +97,135 @@ export function log(message) {
     fs.appendFileSync(LOG_FILE, logMessage);
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     log(`${req.method} ${req.url}`);
+
     if (req.method === 'POST') {
         if (req.url === '/scrape') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', async () => {
-                try {
-                    // Parse the JSON body
-                    const { url, outFile, isMain, verbose } = JSON.parse(body);
-                    //const { __filename, __dirname, parentDir, dataDir } = getPaths(import.meta.url);
+            // Headers are automatically lowercased by node (apparently)
+            const isMain = req.headers['x-is-main'] === 'true';
+            const outFile = req.headers['x-outfile'];
+            const verbose = req.headers['x-verbose'] === 'true';
 
-                    // Validate inputs
-                    if (!url || !outFile) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        return res.end(JSON.stringify({ error: 'Missing required fields: url and outFile' }));
-                    }
+            if (!outFile) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'X-Outfile header is required' }));
+            }
 
-                    if (verbose) log(isMain ? "Running in MAIN mode" : "Running in SUB mode");
+            // Handle request errors (e.g., client disconnects)
+            req.on('error', (err) => {
+                log(`REQUEST STREAM ERROR: ${err.message}`);
+            });
+
+            log(`Verbose set to ${verbose}`);
+
+            // ===============================================
+            //  MAIN MODE: Scrape a single page for its links
+            // ===============================================
+            if (isMain) {
+                log("Running in MAIN mode.");
+                let body = '';
+                req.on('data', chunk => body += chunk.toString());
+                req.on('end', async () => {
+                    const url = body.trim();
 
                     // Initialize Puppeteer
                     const browser = await puppeteer.launch({ headless: true });
-                    const pagePool = new PagePool(browser, MAX_PAGES, verbose);
-                    await pagePool.init();
+                    const page = await browser.newPage();
+                    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
+                    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+                    if (verbose) page.on('console', msg => { const url = page.url() || 'about:blank'; log(`PAGE ${url} LOG: ${msg.text()}`); });
 
-                    const limit = pLimit(MAX_CONCURRENT_REQUESTS); // Limit concurrent requests to x
-                    fs.writeFileSync(outFile, ''); // empty the file to avoid appending to old data
+                    try {
+                        fs.writeFileSync(outFile, ''); // Clear old file
+                        await tierMain(page, url, outFile, verbose);
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ message: `Main page scraped. Links saved to ${outFile}` }));
+                    } catch (error) {
+                        log(`ERROR in MAIN mode: ${error.message}`);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: error.message }));
+                    } finally {
+                        await browser.close();
+                        log('Main mode finished. Browser closed.');
+                    }
+                });
+            }
+            // ====================================================
+            //  SUB MODE: Scrape a stream of URLs from the request
+            // ====================================================
+            else {
+                log("Running in SUB mode. Initializing browser and page pool...");
+                const browser = await puppeteer.launch({ headless: true });
+                const pagePool = new PagePool(browser, MAX_PAGES, verbose); // Assuming PagePool is defined
+                await pagePool.init();
 
-                    if (isMain) {
-                        // Scrape the mainpage
-                        const page = await pagePool.borrow();
+                const limit = pLimit(MAX_CONCURRENT_REQUESTS);
+                const promises = [];
+                fs.writeFileSync(outFile, ''); // Clear old file
 
-                        try {
-                            // writes to file insise for now
-                            await tierMain(page, url, outFile, verbose);
-                        }
-                        finally { pagePool.release(page); }
-                    } else {
-                        fs.writeFileSync(outFile, ''); // empty the file to avoid appending to old data
-                        // Scrape the subpage(s)
-                        if (Array.isArray(url)) {
-                            // promise all the pages
-                            //const errors = [];
-                            let numErr = 0;
-                            /*const results = */
-                            await Promise.all(url.map(singleUrl =>
-                                limit(async () => {
-                                    //todo need a way to red log in the promise
-                                    if (verbose) log(`Fetching tier list from ${singleUrl}`);
-                                    const page = await pagePool.borrow();
+                const rl = readline.createInterface({ input: req });
 
-                                    try {
-                                        const result = await tierSub(page, singleUrl, verbose);
-                                        await writeFileAtomic(outFile, result);
-                                        if (verbose) log(`Successfully processed ${singleUrl}`);
-                                    }
-                                    catch (error) {
-                                        const errObj = { url: singleUrl, error: error.message };
-                                        log(`Error processing ${singleUrl}: ${error.message}`);
-                                        await writeFileAtomic(outFile, errObj);
-                                        //todo make numErr += 1; work
-                                        // If you want to collect errors, uncomment the following lines
-                                        //fs.appendFileSync(outFile, `Error processing ${singleUrl}: ${error.message}\n`);
-                                        //errors.push({ url: singleUrl, error: error.message });
-                                        //return { url: singleUrl, error: error.message };
-                                    }
-                                    finally {
-                                        if (verbose) log("Finished processing", singleUrl);
-                                        pagePool.release(page);
-                                    }
-                                })
-                            ));
-
-
-                            /*if (errors.length > 0) {
-                                console.error("Errors occurred during scraping:", errors);
-                                log(`Errors occurred during scraping: ${errors.toString()}`);
-                                res.writeHead(207, { 'Content-Type': 'application/json' });
-                                return res.end(JSON.stringify({ message: 'Some URLs failed to scrape', errors }));
-                            }*/
-                            if (numErr > 0) {
-                                log(`Errors occurred during scraping: ${numErr} URLs failed to scrape`);
-                                res.writeHead(207, { 'Content-Type': 'application/json' });
-                                return res.end(JSON.stringify({ message: 'Some URLs failed to scrape', errors: numErr }));
-                            }
-                        } else {
-                            // single url
-                            if (verbose) log(`Fetching tier list from ${url}`);
+                rl.on('line', (url) => {
+                    if (url) {
+                        const promise = limit(async () => {
                             const page = await pagePool.borrow();
+                            if (verbose) log(`Processing: ${url}`);
                             try {
-                                await tierSub(page, url, verbose);
-                            }
-                            finally {
+                                const result = await tierSub(page, url, verbose);
+                                await writeFileAtomic(outFile, result);
+                            } catch (error) {
+                                log(`ERROR processing ${url}: ${error.message}`);
+                                await writeFileAtomic(outFile, { url, error: error.message });
+                            } finally {
                                 pagePool.release(page);
                             }
-                        }
-
-                        pagePool.destroy();
-                        browser.close();
+                        });
+                        promises.push(promise);
                     }
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ message: 'Scraping completed successfully' }));
-                } catch (error) {
-                    console.error('Error during scraping:', error);
-                    log(`Error during scraping: ${error.message}`);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: error.message }));
-                } finally {
-                    log('Request processing completed');
-                }
-            });
+                });
+
+                rl.on('close', async () => {
+                    log('Finished reading URL stream. Waiting for all scrapes to complete...');
+                    try {
+                        await Promise.all(promises);
+                        log('All scraping tasks finished successfully.');
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ message: 'Scraping completed' }));
+                    } catch (error) {
+                        log(`ERROR waiting for promises: ${error.message}`);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'One or more scraping tasks failed.' }));
+                    } finally {
+                        await pagePool.destroy();
+                        await browser.close();
+                        log('Sub mode finished. Browser closed.');
+                    }
+                });
+            }
         } else if (req.url === '/stop') {
-            // stop
+            const TO = 5000;
+            log('Received stop request.');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ message: 'Stopping server' }));
             // Close the server
             server.close(() => {
                 log('Server stopped');
+                process.exit(0);
             });
 
-            //todo understand why this runs, even afer the server stops?
             setTimeout(() => {
-                log('Server close timeout, forcing shutdown');
+                log(`Internal error: Server close timeout ${TO} reached, forcing shutdown`);
                 process.exit(0);
-            }, 5000);
+            }, TO);
+        }
+        else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ message: 'Not Found' }));
         }
     }
 });
 
-/*async function getNewPage(browser, verbose = false) {
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
-    await page.setExtraHTTPHeaders({'Accept-Language': 'en-US,en;q=0.9'});
-    if (verbose) page.on('console', msg => {const url = page.url() || 'about:blank'; log(`PAGE ${url} LOG: ${msg.text()}`);});
-    return page;
-}*/
-
 server.listen(PORT, () => {
-  log(`Server running on http://localhost:${PORT}`);
+    log(`Server running on http://localhost:${PORT}`);
 });
