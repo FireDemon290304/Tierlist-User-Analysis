@@ -160,8 +160,19 @@ class TierListDataset:
     @cached_property
     def similarity_matrix(self) -> np.ndarray:
         # Get norms for each row (row=(axis=1))
+        # Find the norm for each vector in the filtered matrix
+        # The args for np, says to take it for the vectors, not the matrix
         norms = np.linalg.norm(self.matrix, axis=1, keepdims=True)
+
+        # here, we devide each individual vector with its corresponding norm,
+        # and storing a new version of the vector, but now its magnitude is 1
         normalised = self.matrix / (norms + 1e-10)  # Add small to avoid undefined
+
+        # Here we calculate the cosine similarity
+        # Because all vectors are mag 1,
+        # the calc simplifies to u dot v for each entry m[u][v] and m.T[u][v]
+        # when calculating this, we transpose norm because then we can mult,
+        # org row by evert other row (org Transpose org.T)
         return normalised @ normalised.T
 
     def filtered_similarity(self, filter_fn: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
@@ -181,23 +192,11 @@ class TierListDataset:
     def sim_test(self) -> np.ndarray:
         # Filter
         filtered = self.matrix[:, [0, -1]]
-
-        # Find the norm for each vector in the filtered matrix
-        # The args for np, says to take it for the vectors, not the matrix
         norms = np.linalg.norm(filtered, axis=1, keepdims=True)
-
-        # here, we devide each individual vector with its corresponding norm,
-        # and storing a new version of the vector, but now its magnitude is 1
         normalised = filtered / (norms + 1e-10)
-
-        # Here we calculate the cosine similarity
-        # Because all vectors are mag 1,
-        # the calc simplifies to u dot v for each entry m[u][v] and m.T[u][v]
-        # when calculating this, we transpose norm because then we can mult,
-        # org row by evert other row (org Transpose org.T)
         return normalised @ normalised.T
 
-    def sim_test2(self, n: int = 3) -> np.ndarray:
+    def top_n_2(self, n: int = 3) -> np.ndarray:
         filtered = self.matrix[:, :n]
         norms = np.linalg.norm(filtered, axis=1, keepdims=True)
         normalised = filtered / (norms + 1e-10)

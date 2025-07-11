@@ -54,8 +54,8 @@ def get_dataset(url):
 def main():
     # url = 'https://tiermaker.com/categories/aregentina/streamers-de-argentina-273542'
     # url = "https://tiermaker.com/categories/beauty-cosmetics/shades-of-pink-ranked-305470"  # 33 of 8
-    url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
-    # url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
+    # url = 'https://tiermaker.com/categories/hollow-knight/hollow-knight-areas-51862'  # 44 of 8
+    url = "https://tiermaker.com/categories/hollow-knight/hollow-knight-bosses-51862"  # 186 of 8
     # url = "https://tiermaker.com/categories/pokemon/pokemon-gen-1"  # 731 of 8 (stresstest (wo! (got ~6k users)))
 
     dataset = TierListDataset.from_file(url_to_file(url, True))
@@ -64,7 +64,7 @@ def main():
 
 #    sim = dataset.similarity_matrix
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
-    sim2 = dataset.love_hate_2(3)
+    sim2 = dataset.top_n_2(3)
 
     print('got sims')
 
