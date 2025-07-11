@@ -22,4 +22,5 @@ Do analysis on users using LA
     - Infer the values maybe
     - FIX THE FUKCING NANS
     - make the axis' on the heatmap be not numbers, or ignore them entirely
+    - make it possible to apply multiple filters at once
 - Make into CLI

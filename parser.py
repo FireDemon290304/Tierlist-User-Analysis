@@ -6,7 +6,7 @@ Created on Mon Jul  7 13:18:47 2025
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Callable, Tuple
+from typing import List, Dict, Optional, Callable, Tuple, Type
 from pathlib import Path
 import json
 import numpy as np
@@ -14,11 +14,18 @@ import pandas as pd
 from functools import cached_property
 import matplotlib.pyplot as plt
 import seaborn as sns
-from numba import njit
+from numba import njit, jit
 
 
-def has_nan(vec) -> bool:
-    return np.isnan(vec).any()
+# using njit because we have checks which cannot be easily vecotrized by numpy
+@njit
+def has_nan(vec: np.ndarray) -> bool:
+    for x in vec:
+        if np.isnan(x):
+            return True
+    return False
+    # jit cannot understand this, so make it explicit
+    # return np.isnan(vec).any()
 
 
 @dataclass
@@ -87,12 +94,14 @@ class TierListDataset:
         return pd.DataFrame(self.matrix, columns=self.all_item_ids, index=self.usernames())
 
     # todo stop ignoring nans. infer elsewhere
+    # todo figure out how to do this with jit to make it faster because of checks
     @cached_property
     def matrix(self) -> np.ndarray:
+        # this is a list of lists, so np.array makes it a 2darray (type ndarray) on its own
         arr = [
-            tl.to_vector(self.all_item_ids)
+            vec
             for tl in self.tierlists
-            if not has_nan(tl.to_vector(self.all_item_ids))]
+            if (vec := tl.to_vector(self.all_item_ids)) is not None and not has_nan(vec)]
         return np.array(arr)
 
     # todo dix nans
@@ -115,6 +124,8 @@ class TierListDataset:
 
         u1, u2 = (self.matrix[v] if not isinstance(v, np.ndarray) else v for v in (user1, user2))
 
+        # Currently this is irrelevant, because matrix calls filters out nans
+        # Want to keep this irrelevant by inferring values later on
         mask = (u1 != np.nan) & (u2 != np.nan)
 
         # Only compare positions where both users have data
@@ -148,20 +159,10 @@ class TierListDataset:
 
     @cached_property
     def similarity_matrix(self) -> np.ndarray:
-        # def dim
-        n = len(self.matrix)
-        sim = np.zeros(shape=(n, n), dtype=float)  # make arr of dim n,n. fill zeros
-
-        # build
-        for i in range(n):
-            for j in range(i, n):  # start i stop n: uppertriangle (avoid double counting)
-                # todo handle np.nan entries
-                u, v = self.matrix[i], self.matrix[j]
-                # s = float('-inf') if has_nan(u) or has_nan(v) else self.fast_cosine(u, v)
-                s = self.fast_cosine(u, v)
-                sim[i, j], sim[j, i] = s, s
-
-        return sim
+        # Get norms for each row (row=(axis=1))
+        norms = np.linalg.norm(self.matrix, axis=1, keepdims=True)
+        normalised = self.matrix / (norms + 1e-10)  # Add small to avoid undefined
+        return normalised @ normalised.T
 
     def filtered_similarity(self, filter_fn: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
         n = len(self.matrix)
@@ -178,13 +179,34 @@ class TierListDataset:
         return sim
 
     def sim_test(self) -> np.ndarray:
+        # Filter
         filtered = self.matrix[:, [0, -1]]
+
+        # Find the norm for each vector in the filtered matrix
+        # The args for np, says to take it for the vectors, not the matrix
         norms = np.linalg.norm(filtered, axis=1, keepdims=True)
+
+        # here, we devide each individual vector with its corresponding norm,
+        # and storing a new version of the vector, but now its magnitude is 1
         normalised = filtered / (norms + 1e-10)
+
+        # Here we calculate the cosine similarity
+        # Because all vectors are mag 1,
+        # the calc simplifies to u dot v for each entry m[u][v] and m.T[u][v]
+        # when calculating this, we transpose norm because then we can mult,
+        # org row by evert other row (org Transpose org.T)
         return normalised @ normalised.T
 
     def sim_test2(self, n: int = 3) -> np.ndarray:
         filtered = self.matrix[:, :n]
+        norms = np.linalg.norm(filtered, axis=1, keepdims=True)
+        normalised = filtered / (norms + 1e-10)
+        return normalised @ normalised.T
+
+    def love_hate_2(self, n: int = 1) -> np.ndarray:
+        """Get first and last. Love-Hate but better"""
+        n = min(n, self.matrix.shape[1] // 2)
+        filtered = self.matrix[:, [*range(n)] + [*range(-n, 0)]]
         norms = np.linalg.norm(filtered, axis=1, keepdims=True)
         normalised = filtered / (norms + 1e-10)
         return normalised @ normalised.T
@@ -198,6 +220,7 @@ class TierListDataset:
 
     @staticmethod
     def top_n_filter(vector: np.array, n: int = 3) -> np.array:
+        """Only keep items that are in the top n for that user"""
         mask = np.zeros_like(vector)
         mask[:n] = 1
         return vector * mask
@@ -236,7 +259,7 @@ class TierListDataset:
         plt.show()
 
     @classmethod
-    def from_file(cls, filepath: str) -> "TierListDataset":
+    def from_file(cls: Type['TierListDataset'], filepath: str) -> "TierListDataset":
         tier_lists: List[TierList] = []
         dataset_name = Path(filepath).stem
 
