@@ -35,13 +35,13 @@ def start_server():
     node_server = subprocess.Popen(['node', 'js/server.js'])
     # Give the server a moment to initialize
     time.sleep(2)
-    print("...child process started.")
+    print("\t...child process started.")
     return node_server
 
 
 def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
     node_proc = start_server()
-    print('starting fetch')
+    print(f'Starting fetch for {name}')
     try:
         local = "http://localhost:3000"
         base = "https://tiermaker.com"
@@ -49,7 +49,7 @@ def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
         main_links_file = os.path.join(dataDir, f"{name}_main_links.jsonl")
         sub_data_file = os.path.join(dataDir, f"{name}_sub_data.jsonl")
 
-        print(f"Getting main page links from {mainpage_url}")
+        print("Getting main page links")
         main_res = requests.post(
             local + '/scrape',
             data=mainpage_url.encode('utf-8'),
@@ -61,7 +61,7 @@ def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
             }
         )
         main_res.raise_for_status()
-        print(f"...main links saved to '{main_links_file}'")
+        print("\t...main links saved.")
 
         print("Streaming sub-page links for individual scraping...")
 
@@ -76,16 +76,16 @@ def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
             }
         )
         sub_res.raise_for_status()
-        print(f"...individual entries scraped and saved to '{sub_data_file}'")
+        print("\t...individual entries done.")
     except requests.exceptions.RequestException as e:
         print(f"\nAn error occurred during an HTTP request: {e}")
     finally:
         # --- SHUTDOWN ---
-        print("...fetch process complete. Stopping server...")
+        print("\t...fetch process complete. Stopping server...")
         try:
             requests.post(local + '/stop')
         except requests.exceptions.ConnectionError:
-            print("...server was already down.")
+            print("\t...server was already down.")
 
         # Wait a moment for the server to close before terminating the process
         time.sleep(1)
