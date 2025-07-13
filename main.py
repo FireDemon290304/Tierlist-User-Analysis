@@ -37,7 +37,7 @@ def extract_clean_slug(url):
 
 def url_to_file(url: str, is_sub: bool):
     name = extract_clean_slug(url)
-    return os.path.join(os.getcwd(), 'data', name + ('.jsonl' if is_sub else '.json'))
+    return os.path.join(os.getcwd(), 'data', name + ('_sub_data' if is_sub else '_main_links') + '.jsonl')
 
 
 def get_dataset(url):
@@ -46,21 +46,28 @@ def get_dataset(url):
 
 
 def main():
-    url = urls[2]
+    url = urls[-3]
 
-    get_dataset(url)
+    u = 0
+#    ub = 684
 
-#    dataset = TierListDataset.from_file(url_to_file(url, True))
+    # get_dataset(url)
 
-    # print(dataset.all_item_ids)
+    dataset = TierListDataset.from_file(url_to_file(url, True))
 
-    # dataset.print_user(0)
+#    print(dataset.all_item_ids)
+
+    dataset.print_user(0)
 
 #    sim = dataset.similarity_matrix
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
 #    sim2 = dataset.top_n_2(3)
+    test = dataset.comp_user_fav(u)
+#    dataset.plot_contrast(u, ub)
 
-#    print('got sims')
+    print('got sims')
+
+    dataset.show_heatmap(test)
 
 #    dataset.show_heatmap(sim)
 #    dataset.show_heatmap(sim1)

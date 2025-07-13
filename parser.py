@@ -162,10 +162,9 @@ class TierListDataset:
     def fast_cosine(u1, u2):
         dot, norm1, norm2 = 0.0, 0.0, 0.0
         for i in range(len(u1)):
-            if u1[i] != np.nan and u2[i] != np.nan:
-                dot += u1[i] * u2[i]
-                norm1 += u1[i] ** 2
-                norm2 += u2[i] ** 2
+            dot += u1[i] * u2[i]
+            norm1 += u1[i] ** 2
+            norm2 += u2[i] ** 2
         if norm1 == 0.0 or norm2 == 0.0:
             return 0.0
         return dot / (norm1**0.5 * norm2**0.5)
@@ -202,25 +201,29 @@ class TierListDataset:
                 sim[i, j], sim[j, i] = s, s
         return sim
 
-    def sim_test(self) -> np.ndarray:
-        # Filter
-        filtered = self.matrix[:, [0, -1]]
-        norms = np.linalg.norm(filtered, axis=1, keepdims=True)
-        normalised = filtered / (norms + 1e-10)
-        return normalised @ normalised.T
+    ###################################################################
+    # --- # WARNING: The bellow filters do not work as intended # --- #
+    ###################################################################
 
-    def top_n_2(self, n: int = 3) -> np.ndarray:
-        filtered = self.matrix[:, :n]
-        norms = np.linalg.norm(filtered, axis=1, keepdims=True)
-        normalised = filtered / (norms + 1e-10)
-        return normalised @ normalised.T
-
-    def love_hate_2(self, n: int = 1) -> np.ndarray:
+    def comp_borders(self, n: int = 1) -> np.ndarray:
         """Get first and last. Love-Hate but better"""
         n = min(n, self.matrix.shape[1] // 2)
         filtered = self.matrix[:, [*range(n)] + [*range(-n, 0)]]
         norms = np.linalg.norm(filtered, axis=1, keepdims=True)
         normalised = filtered / (norms + 1e-10)
+        return normalised @ normalised.T
+
+    def comp_user_fav(self, user: int, thresh: float = 1.5) -> np.ndarray:
+        """Get a cos-sim matrix based on one users favourires"""
+        # get cols for that user's faves
+        mask = self.matrix[user, :] > thresh
+        # Apply mask to get the cols
+        masked = self.matrix[:, mask]
+
+        # cos sim
+        norms = np.linalg.norm(masked, axis=1, keepdims=True)
+        # TODO look into noise reduction (norms.squeeze???)
+        normalised = masked / (norms + 1e-16)
         return normalised @ normalised.T
 
     @staticmethod
@@ -229,18 +232,6 @@ class TierListDataset:
         result[0] = vector[0]
         result[-1] = vector[-1]
         return result
-
-    @staticmethod
-    def top_n_filter(vector: np.array, n: int = 3) -> np.array:
-        """Only keep items that are in the top n for that user"""
-        mask = np.zeros_like(vector)
-        mask[:n] = 1
-        return vector * mask
-
-    @staticmethod
-    def non_neutral_filter(vector: np.array, neutral: Tuple[float, float] = (-0.5, 0.5)) -> np.array:
-        mask = (vector < neutral[0]) | (vector > neutral[1])
-        return vector * mask
 
     @staticmethod
     def z_extremes_filter(vector: np.array, z_threshold: float = 1.0) -> np.array:
@@ -262,12 +253,59 @@ class TierListDataset:
         """Calculate the rank and nullspace of the matrix, along with som other info (todo)."""
         pass
 
-    def show_heatmap(self, data, bound: int = 1) -> None:
+    def show_heatmap(self, data, bl: int = 1, bu: int = 1) -> None:
         plt.figure(figsize=(10, 8))
-        sns.clustermap(data, cmap='coolwarm', center=0, vmax=bound, vmin=-bound)
+        sns.clustermap(data, cmap='coolwarm', center=0, vmin=-bl, vmax=bu)
         plt.title(f"Usersimilarity Heatmap for '{self.datasetName.upper()}'")
         plt.xlabel('user')
         plt.ylabel('user')
+        plt.show()
+
+    def plot_contrast(self, user_a: int, user_b: int):
+        """Plot contrast heatmap between two users."""
+        # get users
+        sub = self.matrix[[user_a, user_b], :]  # shape: (2, n_items)
+#        lent = len(sub[0])
+#        print(sub[0])
+        # get cosine
+#        sub = np.array([self.fast_cosine([sub[0][i]], [sub[1][i]]) for i in range(lent)])
+#        sub.shape = (1, lent)
+
+        sns.heatmap(
+            sub,
+            cmap='coolwarm',
+            center=0,
+            yticklabels=[f"User {user_a}", f"User {user_b}"]
+        )
+
+        plt.title(f"Contrast Clustermap: User {user_a} vs User {user_b}")
+        plt.xlabel("Items")
+        plt.ylabel("Users")
+        plt.show()
+
+    def plot_contrast_cluster(self, user_a: int, user_b: int):
+        """Plot a contrast clustermap, hiding the dendrograms."""
+        sub = self.matrix[[user_a, user_b], :]  # shape: (2, n_items)
+
+        cg = sns.clustermap(
+            sub,
+            cmap='coolwarm',
+            figsize=(12, 8),
+            center=0,
+            yticklabels=[f"User {user_a}", f"User {user_b}"]
+        )
+        cg.ax_row_dendrogram.set_visible(False)
+        cg.ax_col_dendrogram.set_visible(False)
+        cg.ax_cbar.set_visible(False)
+        cg.ax_heatmap.set_title(f"Contrast Heatmap: User {user_a} vs User {user_b}")
+        cg.ax_heatmap.set_xlabel("Items (Clustered)")
+        cg.ax_heatmap.set_ylabel("Users")
+        cg.ax_heatmap.tick_params(axis='y', rotation=0)
+        cg.fig.subplots_adjust(right=0.9)
+
+        # plt.title(f"Contrast Clustermap: User {user_a} vs User {user_b}")
+        # plt.xlabel("Items")
+        # plt.ylabel("Users")
         plt.show()
 
     @classmethod
@@ -333,7 +371,3 @@ class TierListDataset:
 
     def print_user(self, n: int):
         print(self.matrix[n])
-
-    # Save to file
-    def to_csv(self):
-        pass
