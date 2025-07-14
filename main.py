@@ -7,7 +7,7 @@ Created on Sun Jul  6 08:58:30 2025
 Public interface.
 """
 
-from parser import TierListDataset
+from parser import TierListDataset, Algos
 from py_fetch import fetch
 import os
 import re
@@ -48,26 +48,32 @@ def get_dataset(url):
 def main():
     url = urls[-3]
 
-    u = 0
+#    u = 0
 #    ub = 684
 
     # get_dataset(url)
 
     dataset = TierListDataset.from_file(url_to_file(url, True))
+    try:
+        print(Algos.gram_schmidt_explicit(dataset.matrix))      # Users not independent: Some users have derivative taste
+        print(Algos.gram_schmidt_explicit(dataset.matrix.T))    # Items are independent: Item-space is full-rank
+    except Exception as e:
+        print(e)
+
 
 #    print(dataset.all_item_ids)
 
-    dataset.print_user(0)
+#    dataset.print_user(0)
 
 #    sim = dataset.similarity_matrix
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
 #    sim2 = dataset.top_n_2(3)
-    test = dataset.comp_user_fav(u)
+#    test = dataset.comp_user_fav(u)
 #    dataset.plot_contrast(u, ub)
 
-    print('got sims')
+#    print('got sims')
 
-    dataset.show_heatmap(test)
+#    dataset.show_heatmap(test)
 
 #    dataset.show_heatmap(sim)
 #    dataset.show_heatmap(sim1)

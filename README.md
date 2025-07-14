@@ -23,4 +23,7 @@ Do analysis on users using LA
     - FIX THE FUKCING NANS
     - make the axis' on the heatmap be not numbers, or ignore them entirely
     - make it possible to apply multiple filters at once
+  - Understand why QR does not crash with dependant items
+  - Compress users using SVD / PCA
+  - Cluster users / identify user representatives for the specific LD groups
 - Make into CLI

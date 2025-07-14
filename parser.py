@@ -6,7 +6,7 @@ Created on Mon Jul  7 13:18:47 2025
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Callable, Type
+from typing import List, Dict, Optional, Callable, Type, Tuple
 from pathlib import Path
 import json
 import numpy as np
@@ -404,12 +404,12 @@ class Algos:
             for j in range(i):
                 temp -= np.dot(orthonormal[j], matrix[i]) * orthonormal[j]
             if np.allclose(temp, 0):
-                raise ValueError("Not LI")
+                raise np.linalg.LinAlgError("Not LI")
             orthogonal.append(temp)
             orthonormal.append(orthogonal[i] / np.linalg.norm(orthogonal[i]))
         return np.array(orthonormal)
 
-    def gram_schmidt_vectorised(matrix, rows=True):
+    def gram_schmidt_vectorised(matrix: np.array, rows: bool = True) -> np.ndarray:
         if not rows:
             matrix = matrix.T
         basis = []
@@ -417,6 +417,8 @@ class Algos:
             w = v - np.sum([np.dot(v, b) * b for b in basis], axis=0)
             if np.linalg.norm(w) > 1e-10:
                 basis.append(w / np.linalg.norm(w))
+            else:
+                raise np.linalg.LinAlgError("Not LI")
         basis = np.array(basis)
         return basis if rows else basis.T
 
