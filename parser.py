@@ -371,3 +371,71 @@ class TierListDataset:
 
     def print_user(self, n: int):
         print(self.matrix[n])
+
+
+class Algos:
+    def gram_schmidt_explicit(matrix: np.ndarray) -> np.ndarray:
+        """
+        Algorithm to test if a set of given vectors are linearly independent.
+        Returns the orthonormal basis of the vector-set if it completes.
+        If the algorithm stops early, that means the input vectors are not linearly independent.
+
+        Algorithm:
+            Given input vectors a₁, ..., aₖ ∈ ℝⁿ:
+                For i = 1 to k:
+                    1. Orthogonalise:    ṽᵢ = aᵢ - Σ_{j=1}^{i-1} (qⱼᵀ aᵢ) qⱼ
+                    2. Check:            If ||ṽᵢ|| == 0, the vectors are linearly dependent -> stop
+                    3. Normalize:        qᵢ = ṽᵢ / ||ṽᵢ||
+
+        Parameters:
+            vectors (np.ndarray): A 2D numpy array of shape (k, n), representing k input vectors of dimension n.
+
+        Returns:
+            np.ndarray: A 2D numpy array of shape (m, n), where m <= k. The rows are the orthonormal basis vectors.
+                        If m < k, the input vectors were not linearly independent, and the algorithm stopped early.
+        """
+
+        orthonormal = []
+        orthogonal = []
+        orthogonal.append(matrix[0])
+        orthonormal.append(orthogonal[0] / np.linalg.norm(orthogonal[0]))
+        for i in range(1, len(matrix)):
+            temp = np.array(matrix[i]).astype(dtype=float)
+            for j in range(i):
+                temp -= np.dot(orthonormal[j], matrix[i]) * orthonormal[j]
+            if np.allclose(temp, 0):
+                raise ValueError("Not LI")
+            orthogonal.append(temp)
+            orthonormal.append(orthogonal[i] / np.linalg.norm(orthogonal[i]))
+        return np.array(orthonormal)
+
+    def gram_schmidt_vectorised(matrix, rows=True):
+        if not rows:
+            matrix = matrix.T
+        basis = []
+        for v in matrix:
+            w = v - np.sum([np.dot(v, b) * b for b in basis], axis=0)
+            if np.linalg.norm(w) > 1e-10:
+                basis.append(w / np.linalg.norm(w))
+        basis = np.array(basis)
+        return basis if rows else basis.T
+
+    def gram_schmidt_qr(matrix):
+        """This will be different from GS, since it uses Given's rotations internally."""
+        Q, R = np.linalg.qr(matrix)
+        return Q
+
+    def svd(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Calculated the SVD (Singular Value Decomposition) of the given set of input vectors.
+
+        Decomposes an m×n matrix A into three matrices U, Σ, and VT such that:
+            A = UΣVT
+
+        Returns:
+            Tuple:
+                U (np.ndarray): Orthonormal matrix of shape (m, m).\n
+                Σ (np.ndarray): Diagonal matrix of shape (m, n) with non-negative real singular values.\n
+                Vt (np.ndarray): Orthonormal matrix of shape (n, n), the transpose of V.\n
+        """
+        pass
