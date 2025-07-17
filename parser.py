@@ -427,6 +427,40 @@ class Algos:
         Q, R = np.linalg.qr(matrix)
         return Q
 
+    def school_eigen(matrix):
+        A = matrix.copy()
+        Ak = A.copy()
+        for k in range(1000):
+            Qk, Rk = np.linalg.qr(Ak, mode='complete')
+            Ak1 = Rk @ Qk
+            if np.linalg.norm(np.tril(Ak1, -1), 'fro') < 1.0E-10 * np.linalg.norm(A, 'fro'):
+                break
+            Ak = Ak1
+
+        return np.diag(Ak1)
+
+    # Theta 2n^3
+    def get_eigen(matrix: np.ndarray):
+        """Get eigen values by repeatedly doing Ri @ Ai for repeated calcs of R using Givens in QR."""
+
+        def is_upper(A, tol=1e-20):
+            lower = np.tril(A, -1)
+            return np.all(np.abs(lower) < tol)
+
+        # A=A0
+        a = matrix
+        prev = None
+        for i in range(10_000):
+            Q, R = np.linalg.qr(a)
+            a = R @ Q
+            if is_upper(a):
+                return np.diag(a)
+            if prev is not None and np.allclose(a, prev, atol=1e-20):
+                break
+            prev = a
+        print('Converged too slowly. Returning bad diagonals')
+        return np.diag(a)
+
     def svd(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculated the SVD (Singular Value Decomposition) of the given set of input vectors.

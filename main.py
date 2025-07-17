@@ -46,19 +46,23 @@ def get_dataset(url):
 
 
 def main():
-    url = urls[-3]
+    print()
+#    url = urls[0]
 
 #    u = 0
 #    ub = 684
 
     # get_dataset(url)
 
-    dataset = TierListDataset.from_file(url_to_file(url, True))
-    try:
-        print(Algos.gram_schmidt_explicit(dataset.matrix))      # Users not independent: Some users have derivative taste
-        print(Algos.gram_schmidt_explicit(dataset.matrix.T))    # Items are independent: Item-space is full-rank
-    except Exception as e:
-        print(e)
+#    dataset = TierListDataset.from_file(url_to_file(url, True))
+#    A = np.array([[0.7, 0.1, 0.1], [0.2, 0.8, 0.2], [0.1, 0.1, 0.7]], dtype=np.double)
+
+
+#    try:
+#        print(Algos.gram_schmidt_explicit(dataset.matrix))      # Users not independent: Some users have derivative taste
+#        print(Algos.gram_schmidt_explicit(dataset.matrix.T))    # Items are independent: Item-space is full-rank
+#    except Exception as e:
+#        print(e)
 
 
 #    print(dataset.all_item_ids)
