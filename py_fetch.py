@@ -11,6 +11,10 @@ import time
 import os
 
 
+local = "http://localhost:3000"
+base = "https://tiermaker.com"
+
+
 def stream_sub_urls(path: str, base_url: str):
     """
     Reads a file of URL paths line by line, prepends the base URL,
@@ -42,9 +46,6 @@ def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
     node_proc = start_server()
     print(f'Starting fetch for {name}')
     try:
-        local = "http://localhost:3000"
-        base = "https://tiermaker.com"
-
         main_links_file = os.path.join(dataDir, f"{name}_main_links.jsonl")
         sub_data_file = os.path.join(dataDir, f"{name}_sub_data.jsonl")
 

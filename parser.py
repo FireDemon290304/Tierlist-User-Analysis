@@ -42,13 +42,13 @@ class TierList:
     title: str
     rows: List[TierRow]     # This is assumed to be sorted in desc. order based on user ranking
 
-    def __contains__(self, item_id: str) -> bool:
-        pass
+    # def __contains__(self, item_id: str) -> bool:
+    #     pass
 
-    def to_vector(self, item_ids: List[str]) -> np.array:
+    def to_vector(self, item_ids: List[str]) -> np.ndarray:
         """Convert TierList to a vector of normalised scores [0,1] based on tier position"""
 
-        score_map: Dict[str, int] = {}
+        score_map: Dict[str, float] = {}
         num_tiers = len(self.rows)
 
         if num_tiers < 2:
@@ -234,7 +234,7 @@ class TierListDataset:
         return result
 
     @staticmethod
-    def z_extremes_filter(vector: np.array, z_threshold: float = 1.0) -> np.array:
+    def z_extremes_filter(vector: np.ndarray, z_threshold: float = 1.0) -> np.ndarray:
         """Only keep items that are extreme for that user. This detects personal outliers."""
         mean = np.mean(vector)
         std = np.std(vector)
@@ -243,7 +243,7 @@ class TierListDataset:
         return vector * mask
 
     @staticmethod
-    def demean_filter(vector: np.array) -> np.array:
+    def demean_filter(vector: np.ndarray) -> np.ndarray:
         mask = vector != 0
         mean = np.sum(vector) / (np.count_nonzero(mask) + 1e-10)
         return (vector - mean) * mask
@@ -296,7 +296,7 @@ class TierListDataset:
         )
         cg.ax_row_dendrogram.set_visible(False)
         cg.ax_col_dendrogram.set_visible(False)
-        cg.ax_cbar.set_visible(False)
+        cg.ax_cbar.set_visible(False) if cg.ax_cbar is not None else None
         cg.ax_heatmap.set_title(f"Contrast Heatmap: User {user_a} vs User {user_b}")
         cg.ax_heatmap.set_xlabel("Items (Clustered)")
         cg.ax_heatmap.set_ylabel("Users")
@@ -374,6 +374,7 @@ class TierListDataset:
 
 
 class Algos:
+    @staticmethod
     def gram_schmidt_explicit(matrix: np.ndarray) -> np.ndarray:
         """
         Algorithm to test if a set of given vectors are linearly independent.
@@ -409,7 +410,8 @@ class Algos:
             orthonormal.append(orthogonal[i] / np.linalg.norm(orthogonal[i]))
         return np.array(orthonormal)
 
-    def gram_schmidt_vectorised(matrix: np.array, rows: bool = True) -> np.ndarray:
+    @staticmethod
+    def gram_schmidt_vectorised(matrix: np.ndarray, rows: bool = True) -> np.ndarray:
         if not rows:
             matrix = matrix.T
         basis = []
@@ -422,24 +424,29 @@ class Algos:
         basis = np.array(basis)
         return basis if rows else basis.T
 
+    @staticmethod
     def gram_schmidt_qr(matrix):
         """This will be different from GS, since it uses Given's rotations internally."""
         Q, R = np.linalg.qr(matrix)
         return Q
 
+    @staticmethod
     def school_eigen(matrix):
         A = matrix.copy()
         Ak = A.copy()
+        Ak1 = None
         for k in range(1000):
             Qk, Rk = np.linalg.qr(Ak, mode='complete')
             Ak1 = Rk @ Qk
             if np.linalg.norm(np.tril(Ak1, -1), 'fro') < 1.0E-10 * np.linalg.norm(A, 'fro'):
                 break
             Ak = Ak1
-
-        return np.diag(Ak1)
+        
+        if Ak1 is not None:
+            return np.diag(Ak1)
 
     # Theta 2n^3
+    @staticmethod
     def get_eigen(matrix: np.ndarray):
         """Get eigen values by repeatedly doing Ri @ Ai for repeated calcs of R using Givens in QR."""
 
@@ -461,7 +468,8 @@ class Algos:
         print('Converged too slowly. Returning bad diagonals')
         return np.diag(a)
 
-    def svd(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    @staticmethod
+    def svd(matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray] | None:
         """
         Calculated the SVD (Singular Value Decomposition) of the given set of input vectors.
 

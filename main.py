@@ -26,7 +26,7 @@ urls = [
 ]
 
 
-def extract_clean_slug(url):
+def extract_clean_slug(url) -> str | None:
     match = re.search(r'tiermaker\.com/categories/[^/]+/([^/?#]+)', url)
     if match:
         slug = match.group(1)
@@ -35,24 +35,26 @@ def extract_clean_slug(url):
     return None
 
 
-def url_to_file(url: str, is_sub: bool):
+def url_to_file(url: str, is_sub: bool) -> str | None:
     name = extract_clean_slug(url)
-    return os.path.join(os.getcwd(), 'data', name + ('_sub_data' if is_sub else '_main_links') + '.jsonl')
+    if name is not None:
+        return os.path.join(os.getcwd(), 'data', name + ('_sub_data' if is_sub else '_main_links') + '.jsonl')
 
 
 def get_dataset(url):
     name = extract_clean_slug(url)
-    fetch(url, os.path.join(os.getcwd(), 'data'), name)
+    if name is not None:
+        fetch(url, os.path.join(os.getcwd(), 'data'), name)
 
 
 def main():
     print()
-#    url = urls[0]
+    url = urls[3]
 
 #    u = 0
 #    ub = 684
 
-    # get_dataset(url)
+    get_dataset(url)
 
 #    dataset = TierListDataset.from_file(url_to_file(url, True))
 #    A = np.array([[0.7, 0.1, 0.1], [0.2, 0.8, 0.2], [0.1, 0.1, 0.7]], dtype=np.double)
