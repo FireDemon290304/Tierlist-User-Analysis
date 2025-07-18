@@ -35,10 +35,11 @@ def extract_clean_slug(url) -> str | None:
     return None
 
 
-def url_to_file(url: str, is_sub: bool) -> str | None:
+def url_to_file(url: str, is_sub: bool) -> str:
     name = extract_clean_slug(url)
     if name is not None:
         return os.path.join(os.getcwd(), 'data', name + ('_sub_data' if is_sub else '_main_links') + '.jsonl')
+    return ''
 
 
 def get_dataset(url):
@@ -49,10 +50,10 @@ def get_dataset(url):
 
 def main():
     print()
-    url = urls[4]
+    url = urls[5]
 
-#    u = 0
-#    ub = 684
+    # ua = 0
+    # ub = 200
 
     get_dataset(url)
 
@@ -75,7 +76,7 @@ def main():
 #    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
 #    sim2 = dataset.top_n_2(3)
 #    test = dataset.comp_user_fav(u)
-#    dataset.plot_contrast(u, ub)
+#    dataset.plot_contrast(ua, ub)
 
 #    print('got sims')
 

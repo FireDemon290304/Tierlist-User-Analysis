@@ -278,7 +278,7 @@ class TierListDataset:
             yticklabels=[f"User {user_a}", f"User {user_b}"]
         )
 
-        plt.title(f"Contrast Clustermap: User {user_a} vs User {user_b}")
+        plt.title(f"Rankings Heatmap: User {user_a} vs User {user_b}")
         plt.xlabel("Items")
         plt.ylabel("Users")
         plt.show()
