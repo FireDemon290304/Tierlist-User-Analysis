@@ -11,6 +11,7 @@ from parser import TierListDataset, Algos
 from py_fetch import fetch
 import os
 import re
+import numpy as np
 # import pandas as pd
 # from typing import Set
 
@@ -50,16 +51,19 @@ def get_dataset(url):
 
 def main():
     print()
-    url = urls[5]
+#    url = urls[5]
 
-    # ua = 0
-    # ub = 200
+#    ua = 0
+#    ub = 200
 
-    get_dataset(url)
+#    get_dataset(url)
 
 #    dataset = TierListDataset.from_file(url_to_file(url, True))
-#    A = np.array([[0.7, 0.1, 0.1], [0.2, 0.8, 0.2], [0.1, 0.1, 0.7]], dtype=np.double)
-
+    A = np.array([[0.7, 0.1, 0.1], [0.2, 0.8, 0.2], [0.1, 0.1, 0.7]], dtype=np.double)
+    res = Algos.get_eigen(A)
+    print(res)
+#    for i in range(len(orthNorm)):
+#        print(np.linalg.norm(orthNorm[i]))
 
 #    try:
 #        print(Algos.gram_schmidt_explicit(dataset.matrix))      # Users not independent: Some users have derivative taste
@@ -72,23 +76,12 @@ def main():
 
 #    dataset.print_user(0)
 
-#    sim = dataset.similarity_matrix
-#    sim1 = dataset.filtered_similarity(filter_fn=TierListDataset.top_n_filter)
-#    sim2 = dataset.top_n_2(3)
-#    test = dataset.comp_user_fav(u)
+
 #    dataset.plot_contrast(ua, ub)
 
 #    print('got sims')
 
-#    dataset.show_heatmap(test)
 
-#    dataset.show_heatmap(sim)
-#    dataset.show_heatmap(sim1)
-#    dataset.show_heatmap(sim2)
-
-    #    idx = 23
-    #    print(dataset.matrix[idx])
-    #    print(TierListDataset.love_hate_filter(dataset.matrix[idx]))
     pass
 
 
