@@ -112,6 +112,11 @@ const server = http.createServer(async (req, res) => {
                 return res.end(JSON.stringify({ error: 'X-Outfile header is required' }));
             }
 
+            // If outfile does not point to an existing file, create it
+            if (!fs.existsSync(outFile)) {
+                fs.writeFileSync(outFile, ''); // Create the file if it doesn't exist
+            }
+
             // Handle request errors (e.g., client disconnects)
             req.on('error', (err) => {
                 log(`REQUEST STREAM ERROR: ${err.message}`);

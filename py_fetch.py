@@ -57,7 +57,7 @@ def fetch(mainpage_url: str, dataDir: str, name: str) -> None:
                 'Content-Type': 'text/plain',
                 'X-Is-Main': 'true',
                 'X-Outfile': main_links_file,
-                'X-Verbose': 'true'
+                'X-Verbose': 'false'
             }
         )
         main_res.raise_for_status()
