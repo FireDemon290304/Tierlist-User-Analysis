@@ -47,7 +47,18 @@ G = np.array([
 ], dtype=float)
 H = np.array([[0], [0], [0], [0]], dtype=float)
 
-help_str = 'help'
+help_str = """
+Matrix Row Operations - Commands:
+  swap r1 r2     or  s r1 r2    : Swap row r1 with row r2
+  scale r a      or  x r a      : Scale row r by a nonzero scalar a
+  add r1 r2 a                   : Add row r1 * a to row r2
+  sub r1 r2 a                   : Subtract row r1 * a from row r2
+  full           or  f          : Display the full matrix
+  exit           or  e/q/quit   : Exit the program
+  help           or  h          : Show this help message
+Note: Row indices start from 1.
+"""
+
 opr = Operations(G, H)
 
 
