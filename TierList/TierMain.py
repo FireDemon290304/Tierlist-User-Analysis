@@ -51,17 +51,17 @@ def get_dataset(url):
 
 def main():
     print()
-#    url = urls[5]
+    url = urls[0]
 
 #    ua = 0
 #    ub = 200
 
-#    get_dataset(url)
+    get_dataset(url)
 
 #    dataset = TierListDataset.from_file(url_to_file(url, True))
-    A = np.array([[0.7, 0.1, 0.1], [0.2, 0.8, 0.2], [0.1, 0.1, 0.7]], dtype=np.double)
-    res = Algos.get_eigen(A)
-    print(res)
+#    A = np.array([[0.7, 0.1, 0.1], [0.2, 0.8, 0.2], [0.1, 0.1, 0.7]], dtype=np.double)
+#    res = Algos.get_eigen(A)
+#    print(res)
 #    for i in range(len(orthNorm)):
 #        print(np.linalg.norm(orthNorm[i]))
 
