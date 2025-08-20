@@ -18,9 +18,37 @@ B = np.array([
     [1],
     [2]
 ], dtype=float)
+C = np.array([
+    [2, -1, 0, 4, 5],
+    [3, 0, -2, 1, 6],
+    [0, 7, 3, -1, 2],
+    [4, 1, 5, 0, -3],
+    [-1, 2, -4, 3, 0]
+], dtype=float)
+D = np.array([
+    [5],
+    [-2],
+    [7],
+    [0],
+    [-4]
+], dtype=float)
+E = np.array([
+    [1, 2, -4],
+    [0, 6, 7],
+    [10, 0, -12]
+], dtype=float)
+F = np.array([[5], [8], [0]], dtype=float)
+
+G = np.array([
+    [0, -3, -6, 4, 9],
+    [-1, -2, -1, 3, 1],
+    [-2, -3, 0, 3, -1],
+    [1, 4, 5, -9, -7]
+], dtype=float)
+H = np.array([[0], [0], [0], [0]], dtype=float)
 
 help_str = 'help'
-opr = Operations(A, B)
+opr = Operations(G, H)
 
 
 def inp(cmd):

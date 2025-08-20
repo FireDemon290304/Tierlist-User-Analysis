@@ -34,11 +34,11 @@ class Operations:
 
     def add(self, row1, row2, alpha=1.0):
         """Adding a scaled row to/from another row."""
-        self._aug[row1] += self._aug[row2] * alpha
+        self._aug[row2] += self._aug[row1] * alpha
 
     def sub(self, row1, row2, alpha):
         """Subtracting a scaled row to/from another row."""
-        self._aug[row1] -= self._aug[row2] * alpha
+        self._aug[row2] -= self._aug[row1] * alpha
 
     def display(self):
         """Display the current augmented matrix."""
